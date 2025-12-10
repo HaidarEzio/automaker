@@ -8,7 +8,9 @@
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 const readline = require('readline');
+const path = require('path');
 const CodexCliDetector = require('./codex-cli-detector');
+const codexConfigManager = require('./codex-config-manager');
 
 /**
  * Message types from Codex CLI JSON output
@@ -59,6 +61,7 @@ class CodexExecutor extends EventEmitter {
    * @param {number} options.maxTurns Not used - Codex CLI doesn't support this parameter
    * @param {string[]} options.allowedTools Not used - Codex CLI doesn't support this parameter
    * @param {Object} options.env Environment variables
+   * @param {Object} options.mcpServers MCP servers configuration (for configuring Codex TOML)
    * @returns {AsyncGenerator} Generator yielding messages
    */
   async *execute(options) {
@@ -69,7 +72,8 @@ class CodexExecutor extends EventEmitter {
       systemPrompt,
       maxTurns, // Not used by Codex CLI
       allowedTools, // Not used by Codex CLI
-      env = {}
+      env = {},
+      mcpServers = null
     } = options;
 
     const codexPath = this.findCodexPath();
@@ -79,6 +83,27 @@ class CodexExecutor extends EventEmitter {
         error: 'Codex CLI not found. Please install it with: npm install -g @openai/codex@latest'
       };
       return;
+    }
+
+    // Configure MCP server if provided
+    if (mcpServers && mcpServers['automaker-tools']) {
+      try {
+        // Get the absolute path to the MCP server script
+        const mcpServerScriptPath = path.resolve(__dirname, 'mcp-server-stdio.js');
+        
+        // Verify the script exists
+        const fs = require('fs');
+        if (!fs.existsSync(mcpServerScriptPath)) {
+          console.warn(`[CodexExecutor] MCP server script not found at ${mcpServerScriptPath}, skipping MCP configuration`);
+        } else {
+          // Configure Codex TOML to use the MCP server
+          await codexConfigManager.configureMcpServer(cwd, mcpServerScriptPath);
+          console.log('[CodexExecutor] Configured automaker-tools MCP server for Codex CLI');
+        }
+      } catch (error) {
+        console.error('[CodexExecutor] Failed to configure MCP server:', error);
+        // Continue execution even if MCP config fails - Codex will work without MCP tools
+      }
     }
 
     // Combine system prompt with main prompt if provided

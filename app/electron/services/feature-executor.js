@@ -397,6 +397,7 @@ class FeatureExecutor {
         
         // Use Codex provider for OpenAI models
         console.log(`[FeatureExecutor] Using Codex provider for model: ${modelString}`);
+        // Pass MCP server config to Codex provider so it can configure Codex CLI TOML
         currentQuery = provider.executeQuery({
           prompt,
           model: modelString,
@@ -404,6 +405,9 @@ class FeatureExecutor {
           systemPrompt: promptBuilder.getCodingPrompt(),
           maxTurns: 20, // Codex CLI typically uses fewer turns
           allowedTools: options.allowedTools,
+          mcpServers: {
+            "automaker-tools": featureToolsServer
+          },
           abortController: abortController,
           env: {
             OPENAI_API_KEY: process.env.OPENAI_API_KEY

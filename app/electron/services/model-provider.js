@@ -297,6 +297,7 @@ class CodexProvider extends ModelProvider {
       systemPrompt: options.systemPrompt,
       maxTurns: options.maxTurns || 20,
       allowedTools: options.allowedTools,
+      mcpServers: options.mcpServers, // Pass MCP servers config to executor
       env: {
         ...process.env,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY

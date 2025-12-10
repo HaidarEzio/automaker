@@ -734,6 +734,43 @@ ipcMain.handle("model:check-providers", async () => {
   }
 });
 
+// ============================================================================
+// MCP Server IPC Handlers
+// ============================================================================
+
+/**
+ * Handle MCP server callback for updating feature status
+ * This can be called by the MCP server script via HTTP or other communication mechanism
+ * Note: The MCP server script runs as a separate process, so it can't directly use Electron IPC.
+ * For now, the MCP server calls featureLoader.updateFeatureStatus directly.
+ * This handler is here for future extensibility (e.g., HTTP endpoint bridge).
+ */
+ipcMain.handle("mcp:update-feature-status", async (_, { featureId, status, projectPath, summary }) => {
+  try {
+    const featureLoader = require("./services/feature-loader");
+    await featureLoader.updateFeatureStatus(featureId, status, projectPath, summary);
+    
+    // Notify renderer if window is available
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("mcp:feature-status-updated", {
+        featureId,
+        status,
+        projectPath,
+        summary
+      });
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error("[IPC] mcp:update-feature-status error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================================================
+// OpenAI API Handlers
+// ============================================================================
+
 /**
  * Test OpenAI API connection
  */
