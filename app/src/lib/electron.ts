@@ -41,8 +41,8 @@ export interface StatResult {
   error?: string;
 }
 
-// Auto Mode types - Import from electron.d.ts to avoid duplication
-import type {
+// Re-export types from electron.d.ts for external use
+export type {
   AutoModeEvent,
   ModelDefinition,
   ProviderStatus,
@@ -53,6 +53,13 @@ import type {
   FileDiffsResult,
   FileDiffResult,
   FileStatus,
+} from "@/types/electron";
+
+// Import types for internal use in this file
+import type {
+  AutoModeEvent,
+  WorktreeAPI,
+  GitAPI,
 } from "@/types/electron";
 
 // Feature type - Import from app-store
@@ -308,17 +315,19 @@ export interface ElectronAPI {
     getClaudeStatus: () => Promise<{
       success: boolean;
       status?: string;
+      installed?: boolean;
       method?: string;
       version?: string;
       path?: string;
       auth?: {
         authenticated: boolean;
         method: string;
-        hasCredentialsFile: boolean;
-        hasToken: boolean;
+        hasCredentialsFile?: boolean;
+        hasToken?: boolean;
         hasStoredOAuthToken?: boolean;
         hasStoredApiKey?: boolean;
         hasEnvApiKey?: boolean;
+        hasEnvOAuthToken?: boolean;
       };
       error?: string;
     }>;
