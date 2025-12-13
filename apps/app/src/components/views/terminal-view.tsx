@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Terminal as TerminalIcon,
   Plus,
@@ -15,6 +15,7 @@ import {
   SquarePlus,
 } from "lucide-react";
 import { useAppStore, type TerminalPanelContent, type TerminalTab } from "@/store/app-store";
+import { useKeyboardShortcutsConfig, type KeyboardShortcut } from "@/hooks/use-keyboard-shortcuts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -337,6 +338,60 @@ export function TerminalView() {
       console.error("[Terminal] Kill session error:", err);
     }
   };
+
+  // Get keyboard shortcuts config
+  const shortcuts = useKeyboardShortcutsConfig();
+
+  // Handle terminal-specific keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when terminal is unlocked and has an active session
+      if (!terminalState.isUnlocked || !terminalState.activeSessionId) return;
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+      // Parse shortcut string to check for match
+      const matchesShortcut = (shortcutStr: string) => {
+        const parts = shortcutStr.toLowerCase().split('+');
+        const key = parts[parts.length - 1];
+        const needsCmd = parts.includes('cmd');
+        const needsShift = parts.includes('shift');
+        const needsAlt = parts.includes('alt');
+
+        return (
+          e.key.toLowerCase() === key &&
+          cmdOrCtrl === needsCmd &&
+          e.shiftKey === needsShift &&
+          e.altKey === needsAlt
+        );
+      };
+
+      // Split terminal right (Cmd+D / Ctrl+D)
+      if (matchesShortcut(shortcuts.splitTerminalRight)) {
+        e.preventDefault();
+        createTerminal("horizontal", terminalState.activeSessionId);
+        return;
+      }
+
+      // Split terminal down (Cmd+Shift+D / Ctrl+Shift+D)
+      if (matchesShortcut(shortcuts.splitTerminalDown)) {
+        e.preventDefault();
+        createTerminal("vertical", terminalState.activeSessionId);
+        return;
+      }
+
+      // Close terminal (Cmd+W / Ctrl+W)
+      if (matchesShortcut(shortcuts.closeTerminal)) {
+        e.preventDefault();
+        killTerminal(terminalState.activeSessionId);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [terminalState.isUnlocked, terminalState.activeSessionId, shortcuts]);
 
   // Get a stable key for a panel
   const getPanelKey = (panel: TerminalPanelContent): string => {

@@ -160,6 +160,11 @@ export interface KeyboardShortcuts {
   cyclePrevProject: string;
   cycleNextProject: string;
   addProfile: string;
+
+  // Terminal shortcuts
+  splitTerminalRight: string;
+  splitTerminalDown: string;
+  closeTerminal: string;
 }
 
 // Default keyboard shortcuts
@@ -188,6 +193,11 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcuts = {
   cyclePrevProject: "Q", // Global shortcut
   cycleNextProject: "E", // Global shortcut
   addProfile: "N", // Only active in profiles view
+
+  // Terminal shortcuts (only active in terminal view)
+  splitTerminalRight: "Cmd+D",
+  splitTerminalDown: "Cmd+Shift+D",
+  closeTerminal: "Cmd+W",
 };
 
 export interface ImageAttachment {
