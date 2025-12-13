@@ -388,6 +388,28 @@ export interface AppState {
   previewTheme: ThemeMode | null;
 }
 
+// Default background settings for board backgrounds
+export const defaultBackgroundSettings: {
+  imagePath: string | null;
+  imageVersion?: number;
+  cardOpacity: number;
+  columnOpacity: number;
+  columnBorderEnabled: boolean;
+  cardGlassmorphism: boolean;
+  cardBorderEnabled: boolean;
+  cardBorderOpacity: number;
+  hideScrollbar: boolean;
+} = {
+  imagePath: null,
+  cardOpacity: 100,
+  columnOpacity: 100,
+  columnBorderEnabled: true,
+  cardGlassmorphism: true,
+  cardBorderEnabled: true,
+  cardBorderOpacity: 100,
+  hideScrollbar: false,
+};
+
 export interface AutoModeActivity {
   id: string;
   featureId: string;
@@ -1345,16 +1367,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
       setCardOpacity: (projectPath, opacity) => {
         const current = get().boardBackgroundByProject;
-        const existing = current[projectPath] || {
-          imagePath: null,
-          cardOpacity: 100,
-          columnOpacity: 100,
-          columnBorderEnabled: true,
-          cardGlassmorphism: true,
-          cardBorderEnabled: true,
-          cardBorderOpacity: 100,
-          hideScrollbar: false,
-        };
+        const existing = current[projectPath] || defaultBackgroundSettings;
         set({
           boardBackgroundByProject: {
             ...current,
@@ -1368,16 +1381,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
       setColumnOpacity: (projectPath, opacity) => {
         const current = get().boardBackgroundByProject;
-        const existing = current[projectPath] || {
-          imagePath: null,
-          cardOpacity: 100,
-          columnOpacity: 100,
-          columnBorderEnabled: true,
-          cardGlassmorphism: true,
-          cardBorderEnabled: true,
-          cardBorderOpacity: 100,
-          hideScrollbar: false,
-        };
+        const existing = current[projectPath] || defaultBackgroundSettings;
         set({
           boardBackgroundByProject: {
             ...current,
@@ -1391,32 +1395,12 @@ export const useAppStore = create<AppState & AppActions>()(
 
       getBoardBackground: (projectPath) => {
         const settings = get().boardBackgroundByProject[projectPath];
-        return (
-          settings || {
-            imagePath: null,
-            cardOpacity: 100,
-            columnOpacity: 100,
-            columnBorderEnabled: true,
-            cardGlassmorphism: true,
-            cardBorderEnabled: true,
-            cardBorderOpacity: 100,
-            hideScrollbar: false,
-          }
-        );
+        return settings || defaultBackgroundSettings;
       },
 
       setColumnBorderEnabled: (projectPath, enabled) => {
         const current = get().boardBackgroundByProject;
-        const existing = current[projectPath] || {
-          imagePath: null,
-          cardOpacity: 100,
-          columnOpacity: 100,
-          columnBorderEnabled: true,
-          cardGlassmorphism: true,
-          cardBorderEnabled: true,
-          cardBorderOpacity: 100,
-          hideScrollbar: false,
-        };
+        const existing = current[projectPath] || defaultBackgroundSettings;
         set({
           boardBackgroundByProject: {
             ...current,
@@ -1430,16 +1414,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
       setCardGlassmorphism: (projectPath, enabled) => {
         const current = get().boardBackgroundByProject;
-        const existing = current[projectPath] || {
-          imagePath: null,
-          cardOpacity: 100,
-          columnOpacity: 100,
-          columnBorderEnabled: true,
-          cardGlassmorphism: true,
-          cardBorderEnabled: true,
-          cardBorderOpacity: 100,
-          hideScrollbar: false,
-        };
+        const existing = current[projectPath] || defaultBackgroundSettings;
         set({
           boardBackgroundByProject: {
             ...current,
@@ -1453,16 +1428,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
       setCardBorderEnabled: (projectPath, enabled) => {
         const current = get().boardBackgroundByProject;
-        const existing = current[projectPath] || {
-          imagePath: null,
-          cardOpacity: 100,
-          columnOpacity: 100,
-          columnBorderEnabled: true,
-          cardGlassmorphism: true,
-          cardBorderEnabled: true,
-          cardBorderOpacity: 100,
-          hideScrollbar: false,
-        };
+        const existing = current[projectPath] || defaultBackgroundSettings;
         set({
           boardBackgroundByProject: {
             ...current,
@@ -1476,16 +1442,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
       setCardBorderOpacity: (projectPath, opacity) => {
         const current = get().boardBackgroundByProject;
-        const existing = current[projectPath] || {
-          imagePath: null,
-          cardOpacity: 100,
-          columnOpacity: 100,
-          columnBorderEnabled: true,
-          cardGlassmorphism: true,
-          cardBorderEnabled: true,
-          cardBorderOpacity: 100,
-          hideScrollbar: false,
-        };
+        const existing = current[projectPath] || defaultBackgroundSettings;
         set({
           boardBackgroundByProject: {
             ...current,
@@ -1499,16 +1456,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
       setHideScrollbar: (projectPath, hide) => {
         const current = get().boardBackgroundByProject;
-        const existing = current[projectPath] || {
-          imagePath: null,
-          cardOpacity: 100,
-          columnOpacity: 100,
-          columnBorderEnabled: true,
-          cardGlassmorphism: true,
-          cardBorderEnabled: true,
-          cardBorderOpacity: 100,
-          hideScrollbar: false,
-        };
+        const existing = current[projectPath] || defaultBackgroundSettings;
         set({
           boardBackgroundByProject: {
             ...current,
@@ -1522,16 +1470,7 @@ export const useAppStore = create<AppState & AppActions>()(
 
       clearBoardBackground: (projectPath) => {
         const current = get().boardBackgroundByProject;
-        const existing = current[projectPath] || {
-          imagePath: null,
-          cardOpacity: 100,
-          columnOpacity: 100,
-          columnBorderEnabled: true,
-          cardGlassmorphism: true,
-          cardBorderEnabled: true,
-          cardBorderOpacity: 100,
-          hideScrollbar: false,
-        };
+        const existing = current[projectPath] || defaultBackgroundSettings;
         set({
           boardBackgroundByProject: {
             ...current,
