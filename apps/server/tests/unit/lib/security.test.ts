@@ -59,7 +59,7 @@ describe("security.ts", () => {
       process.env.WORKSPACE_DIR = "/workspace/dir";
 
       const { initAllowedPaths, getAllowedPaths } = await import(
-        "@/lib/security.js"
+        "@automaker/platform"
       );
       initAllowedPaths();
 

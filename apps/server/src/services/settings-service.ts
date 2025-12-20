@@ -9,14 +9,14 @@
 
 import fs from "fs/promises";
 import path from "path";
-import { createLogger } from "../lib/logger.js";
+import { createLogger } from "@automaker/utils";
 import {
   getGlobalSettingsPath,
   getCredentialsPath,
   getProjectSettingsPath,
   ensureDataDir,
   ensureAutomakerDir,
-} from "../lib/automaker-paths.js";
+} from "@automaker/platform";
 import type {
   GlobalSettings,
   Credentials,
