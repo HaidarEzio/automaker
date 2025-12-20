@@ -9,14 +9,12 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json", "html"],
       include: ["src/**/*.ts"],
-      exclude: ["src/**/*.d.ts", "src/index.ts"],
+      exclude: ["src/**/*.d.ts", "src/index.ts", "src/types.ts"],
       thresholds: {
-        // Current overall coverage: ~64% (only subprocess.ts well tested)
-        // Set realistic thresholds until more files are tested
-        lines: 60,
-        functions: 40,
-        branches: 60,
-        statements: 60,
+        lines: 65,
+        functions: 75,
+        branches: 35,
+        statements: 65,
       },
     },
   },

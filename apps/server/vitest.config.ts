@@ -17,12 +17,12 @@ export default defineConfig({
         "src/routes/**", // Routes are better tested with integration tests
       ],
       thresholds: {
-        // Thresholds lowered after moving lib files to shared packages
-        // TODO: Gradually increase as we add more tests
-        lines: 55,
-        functions: 50,
-        branches: 50,
-        statements: 55,
+        // Increased thresholds to ensure better code quality
+        // Current coverage: 64% stmts, 56% branches, 78% funcs, 64% lines
+        lines: 60,
+        functions: 75,
+        branches: 55,
+        statements: 60,
       },
     },
     include: ["tests/**/*.test.ts", "tests/**/*.spec.ts"],
