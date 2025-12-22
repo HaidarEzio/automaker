@@ -298,6 +298,14 @@ export function ContextView() {
 
           // Reload files to update UI with new description
           await loadContextFiles();
+
+          // Also update selectedFile if it's the one that just got described
+          setSelectedFile((current) => {
+            if (current?.name === fileName) {
+              return { ...current, description };
+            }
+            return current;
+          });
         }
       } catch (error) {
         console.error('Failed to generate description:', error);
@@ -747,37 +755,33 @@ export function ContextView() {
                   return (
                     <div
                       key={file.path}
+                      onClick={() => handleSelectFile(file)}
                       className={cn(
-                        'group w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
+                        'group w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer',
                         selectedFile?.path === file.path
                           ? 'bg-primary/20 text-foreground border border-primary/30'
                           : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                       )}
+                      data-testid={`context-file-${file.name}`}
                     >
-                      <button
-                        onClick={() => handleSelectFile(file)}
-                        className="flex-1 flex items-center gap-2 text-left min-w-0"
-                        data-testid={`context-file-${file.name}`}
-                      >
-                        {file.type === 'image' ? (
-                          <ImageIcon className="w-4 h-4 flex-shrink-0" />
-                        ) : (
-                          <FileText className="w-4 h-4 flex-shrink-0" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <span className="truncate text-sm block">{file.name}</span>
-                          {isGenerating ? (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              Generating description...
-                            </span>
-                          ) : file.description ? (
-                            <span className="truncate text-xs text-muted-foreground block">
-                              {file.description}
-                            </span>
-                          ) : null}
-                        </div>
-                      </button>
+                      {file.type === 'image' ? (
+                        <ImageIcon className="w-4 h-4 flex-shrink-0" />
+                      ) : (
+                        <FileText className="w-4 h-4 flex-shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <span className="truncate text-sm block">{file.name}</span>
+                        {isGenerating ? (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Generating description...
+                          </span>
+                        ) : file.description ? (
+                          <span className="truncate text-xs text-muted-foreground block">
+                            {file.description}
+                          </span>
+                        ) : null}
+                      </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button

@@ -3,12 +3,20 @@
  *
  * Uses Claude Haiku to analyze a text file and generate a concise description
  * suitable for context file metadata.
+ *
+ * SECURITY: This endpoint validates file paths against ALLOWED_ROOT_DIRECTORY
+ * and reads file content directly (not via Claude's Read tool) to prevent
+ * arbitrary file reads and prompt injection attacks.
  */
 
 import type { Request, Response } from 'express';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createLogger } from '@automaker/utils';
 import { CLAUDE_MODEL_MAP } from '@automaker/types';
+import { PathNotAllowedError } from '@automaker/platform';
+import { createCustomOptions } from '../../../lib/sdk-options.js';
+import * as secureFs from '../../../lib/secure-fs.js';
+import * as path from 'path';
 
 const logger = createLogger('DescribeFile');
 
@@ -40,20 +48,15 @@ interface DescribeFileErrorResponse {
  * Extract text content from Claude SDK response messages
  */
 async function extractTextFromStream(
-  stream: AsyncIterable<{
-    type: string;
-    subtype?: string;
-    result?: string;
-    message?: {
-      content?: Array<{ type: string; text?: string }>;
-    };
-  }>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  stream: AsyncIterable<any>
 ): Promise<string> {
   let responseText = '';
 
   for await (const msg of stream) {
     if (msg.type === 'assistant' && msg.message?.content) {
-      for (const block of msg.message.content) {
+      const blocks = msg.message.content as Array<{ type: string; text?: string }>;
+      for (const block of blocks) {
         if (block.type === 'text' && block.text) {
           responseText += block.text;
         }
@@ -88,23 +91,100 @@ export function createDescribeFileHandler(): (req: Request, res: Response) => Pr
 
       logger.info(`[DescribeFile] Starting description generation for: ${filePath}`);
 
-      // Build prompt that explicitly asks to read and describe the file
-      const prompt = `Read the file at "${filePath}" and describe what it contains.
+      // Resolve the path for logging and cwd derivation
+      const resolvedPath = secureFs.resolvePath(filePath);
 
-After reading the file, provide a 1-2 sentence description suitable for use as context in an AI coding assistant. Focus on what the file contains, its purpose, and why an AI agent might want to use this context in the future (e.g., "API documentation for the authentication endpoints", "Configuration file for database connections", "Coding style guidelines for the project").
+      // Read file content using secureFs (validates path against ALLOWED_ROOT_DIRECTORY)
+      // This prevents arbitrary file reads (e.g., /etc/passwd, ~/.ssh/id_rsa)
+      // and prompt injection attacks where malicious filePath values could inject instructions
+      let fileContent: string;
+      try {
+        const content = await secureFs.readFile(resolvedPath, 'utf-8');
+        fileContent = typeof content === 'string' ? content : content.toString('utf-8');
+      } catch (readError) {
+        // Path not allowed - return 403 Forbidden
+        if (readError instanceof PathNotAllowedError) {
+          logger.warn(`[DescribeFile] Path not allowed: ${filePath}`);
+          const response: DescribeFileErrorResponse = {
+            success: false,
+            error: 'File path is not within the allowed directory',
+          };
+          res.status(403).json(response);
+          return;
+        }
 
-Respond with ONLY the description text, no additional formatting, preamble, or explanation.`;
+        // File not found
+        if (
+          readError !== null &&
+          typeof readError === 'object' &&
+          'code' in readError &&
+          readError.code === 'ENOENT'
+        ) {
+          logger.warn(`[DescribeFile] File not found: ${resolvedPath}`);
+          const response: DescribeFileErrorResponse = {
+            success: false,
+            error: `File not found: ${filePath}`,
+          };
+          res.status(404).json(response);
+          return;
+        }
 
-      // Use Claude SDK query function - needs 3+ turns for: tool call, tool result, response
-      const stream = query({
-        prompt,
-        options: {
-          model: CLAUDE_MODEL_MAP.haiku,
-          maxTurns: 3,
-          allowedTools: ['Read'],
-          permissionMode: 'acceptEdits',
-        },
+        const errorMessage = readError instanceof Error ? readError.message : 'Unknown error';
+        logger.error(`[DescribeFile] Failed to read file: ${errorMessage}`);
+        const response: DescribeFileErrorResponse = {
+          success: false,
+          error: `Failed to read file: ${errorMessage}`,
+        };
+        res.status(500).json(response);
+        return;
+      }
+
+      // Truncate very large files to avoid token limits
+      const MAX_CONTENT_LENGTH = 50000;
+      const truncated = fileContent.length > MAX_CONTENT_LENGTH;
+      const contentToAnalyze = truncated
+        ? fileContent.substring(0, MAX_CONTENT_LENGTH)
+        : fileContent;
+
+      // Get the filename for context
+      const fileName = path.basename(resolvedPath);
+
+      // Build prompt with file content passed as structured data
+      // The file content is included directly, not via tool invocation
+      const instructionText = `Analyze the following file and provide a 1-2 sentence description suitable for use as context in an AI coding assistant. Focus on what the file contains, its purpose, and why an AI agent might want to use this context in the future (e.g., "API documentation for the authentication endpoints", "Configuration file for database connections", "Coding style guidelines for the project").
+
+Respond with ONLY the description text, no additional formatting, preamble, or explanation.
+
+File: ${fileName}${truncated ? ' (truncated)' : ''}`;
+
+      const promptContent = [
+        { type: 'text' as const, text: instructionText },
+        { type: 'text' as const, text: `\n\n--- FILE CONTENT ---\n${contentToAnalyze}` },
+      ];
+
+      // Use the file's directory as the working directory
+      const cwd = path.dirname(resolvedPath);
+
+      // Use centralized SDK options with proper cwd validation
+      // No tools needed since we're passing file content directly
+      const sdkOptions = createCustomOptions({
+        cwd,
+        model: CLAUDE_MODEL_MAP.haiku,
+        maxTurns: 1,
+        allowedTools: [],
+        sandbox: { enabled: true, autoAllowBashIfSandboxed: true },
       });
+
+      const promptGenerator = (async function* () {
+        yield {
+          type: 'user' as const,
+          session_id: '',
+          message: { role: 'user' as const, content: promptContent },
+          parent_tool_use_id: null,
+        };
+      })();
+
+      const stream = query({ prompt: promptGenerator, options: sdkOptions });
 
       // Extract the description from the response
       const description = await extractTextFromStream(stream);

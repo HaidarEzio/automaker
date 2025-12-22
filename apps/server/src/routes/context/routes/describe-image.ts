@@ -21,6 +21,34 @@ import * as path from 'path';
 const logger = createLogger('DescribeImage');
 
 /**
+ * Allowlist of safe headers to log
+ * All other headers are excluded to prevent leaking sensitive values
+ */
+const SAFE_HEADERS_ALLOWLIST = new Set([
+  'content-type',
+  'accept',
+  'user-agent',
+  'host',
+  'referer',
+  'content-length',
+  'origin',
+  'x-request-id',
+]);
+
+/**
+ * Filter request headers to only include safe, non-sensitive values
+ */
+function filterSafeHeaders(headers: Record<string, unknown>): Record<string, unknown> {
+  const filtered: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (SAFE_HEADERS_ALLOWLIST.has(key.toLowerCase())) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
+/**
  * Find the actual file path, handling Unicode character variations.
  * macOS screenshots use U+202F (NARROW NO-BREAK SPACE) before AM/PM,
  * but this may be transmitted as a regular space through the API.
@@ -206,8 +234,9 @@ export function createDescribeImageHandler(): (req: Request, res: Response) => P
     const startedAt = Date.now();
 
     // Request envelope logs (high value when correlating failures)
+    // Only log safe headers to prevent leaking sensitive values (auth tokens, cookies, etc.)
     logger.info(`[${requestId}] ===== POST /api/context/describe-image =====`);
-    logger.info(`[${requestId}] headers=${JSON.stringify(req.headers)}`);
+    logger.info(`[${requestId}] headers=${JSON.stringify(filterSafeHeaders(req.headers))}`);
     logger.info(`[${requestId}] body=${JSON.stringify(req.body)}`);
 
     try {
