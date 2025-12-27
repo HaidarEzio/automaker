@@ -1,6 +1,6 @@
 # Phase 3: Provider Factory Integration
 
-**Status:** `pending`
+**Status:** `completed`
 **Dependencies:** Phase 2 (Provider)
 **Estimated Effort:** Small (routing logic only)
 
@@ -16,7 +16,7 @@ Integrate CursorProvider into the ProviderFactory so models are automatically ro
 
 ### Task 3.1: Update Provider Factory
 
-**Status:** `pending`
+**Status:** `completed`
 
 **File:** `apps/server/src/providers/provider-factory.ts`
 
@@ -132,7 +132,7 @@ export class ProviderFactory {
 
 ### Task 3.2: Export CursorProvider
 
-**Status:** `pending`
+**Status:** `completed`
 
 **File:** `apps/server/src/providers/index.ts`
 
@@ -203,13 +203,13 @@ console.log('Total models:', allModels.length);
 
 Before marking this phase complete:
 
-- [ ] ProviderFactory routes `cursor-*` models to CursorProvider
-- [ ] ProviderFactory routes Claude models to ClaudeProvider
-- [ ] `getAllProviders()` returns both providers
-- [ ] `getProviderByName('cursor')` returns CursorProvider
-- [ ] `checkAllProviders()` returns status for both providers
-- [ ] `getAllAvailableModels()` includes Cursor models
-- [ ] Existing Claude routing not broken
+- [x] ProviderFactory routes `cursor-*` models to CursorProvider
+- [x] ProviderFactory routes Claude models to ClaudeProvider
+- [x] `getAllProviders()` returns both providers
+- [x] `getProviderByName('cursor')` returns CursorProvider
+- [x] `checkAllProviders()` returns status for both providers
+- [x] `getAllAvailableModels()` includes Cursor models
+- [x] Existing Claude routing not broken
 
 ---
 

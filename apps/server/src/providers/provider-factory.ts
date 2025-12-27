@@ -8,33 +8,56 @@
 
 import { BaseProvider } from './base-provider.js';
 import { ClaudeProvider } from './claude-provider.js';
-import type { InstallationStatus } from './types.js';
+import { CursorProvider } from './cursor-provider.js';
+import type { InstallationStatus, ModelDefinition } from './types.js';
+import { CURSOR_MODEL_MAP } from '@automaker/types';
 
 export class ProviderFactory {
   /**
+   * Determine which provider to use for a given model
+   *
+   * @param model Model identifier
+   * @returns Provider name ('claude' | 'cursor')
+   */
+  static getProviderNameForModel(model: string): 'claude' | 'cursor' {
+    const lowerModel = model.toLowerCase();
+
+    // Check for explicit cursor prefix
+    if (lowerModel.startsWith('cursor-')) {
+      return 'cursor';
+    }
+
+    // Check if it's a known Cursor model ID (without prefix)
+    const cursorModelId = lowerModel.replace('cursor-', '');
+    if (cursorModelId in CURSOR_MODEL_MAP) {
+      return 'cursor';
+    }
+
+    // Check for Claude model patterns
+    if (
+      lowerModel.startsWith('claude-') ||
+      ['opus', 'sonnet', 'haiku'].some((n) => lowerModel.includes(n))
+    ) {
+      return 'claude';
+    }
+
+    // Default to Claude
+    return 'claude';
+  }
+
+  /**
    * Get the appropriate provider for a given model ID
    *
-   * @param modelId Model identifier (e.g., "claude-opus-4-5-20251101", "gpt-5.2", "cursor-fast")
+   * @param modelId Model identifier (e.g., "claude-opus-4-5-20251101", "cursor-gpt-4o", "cursor-auto")
    * @returns Provider instance for the model
    */
   static getProviderForModel(modelId: string): BaseProvider {
-    const lowerModel = modelId.toLowerCase();
+    const providerName = this.getProviderNameForModel(modelId);
 
-    // Claude models (claude-*, opus, sonnet, haiku)
-    if (lowerModel.startsWith('claude-') || ['haiku', 'sonnet', 'opus'].includes(lowerModel)) {
-      return new ClaudeProvider();
+    if (providerName === 'cursor') {
+      return new CursorProvider();
     }
 
-    // Future providers:
-    // if (lowerModel.startsWith("cursor-")) {
-    //   return new CursorProvider();
-    // }
-    // if (lowerModel.startsWith("opencode-")) {
-    //   return new OpenCodeProvider();
-    // }
-
-    // Default to Claude for unknown models
-    console.warn(`[ProviderFactory] Unknown model prefix for "${modelId}", defaulting to Claude`);
     return new ClaudeProvider();
   }
 
@@ -42,10 +65,7 @@ export class ProviderFactory {
    * Get all available providers
    */
   static getAllProviders(): BaseProvider[] {
-    return [
-      new ClaudeProvider(),
-      // Future providers...
-    ];
+    return [new ClaudeProvider(), new CursorProvider()];
   }
 
   /**
@@ -80,11 +100,8 @@ export class ProviderFactory {
       case 'anthropic':
         return new ClaudeProvider();
 
-      // Future providers:
-      // case "cursor":
-      //   return new CursorProvider();
-      // case "opencode":
-      //   return new OpenCodeProvider();
+      case 'cursor':
+        return new CursorProvider();
 
       default:
         return null;
@@ -94,15 +111,8 @@ export class ProviderFactory {
   /**
    * Get all available models from all providers
    */
-  static getAllAvailableModels() {
+  static getAllAvailableModels(): ModelDefinition[] {
     const providers = this.getAllProviders();
-    const allModels = [];
-
-    for (const provider of providers) {
-      const models = provider.getAvailableModels();
-      allModels.push(...models);
-    }
-
-    return allModels;
+    return providers.flatMap((p) => p.getAvailableModels());
   }
 }
