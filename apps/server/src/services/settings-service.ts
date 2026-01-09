@@ -615,7 +615,8 @@ export class SettingsService {
           appState.skipVerificationInAutoMode !== undefined
             ? (appState.skipVerificationInAutoMode as boolean)
             : false,
-        useWorktrees: (appState.useWorktrees as boolean) || false,
+        useWorktrees:
+          appState.useWorktrees !== undefined ? (appState.useWorktrees as boolean) : true,
         showProfilesOnly: (appState.showProfilesOnly as boolean) || false,
         defaultPlanningMode:
           (appState.defaultPlanningMode as GlobalSettings['defaultPlanningMode']) || 'skip',

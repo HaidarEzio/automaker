@@ -46,10 +46,11 @@ import type { ReasoningEffort, PhaseModelEntry, DescriptionHistoryEntry } from '
 import {
   TestingTabContent,
   PrioritySelector,
-  BranchSelector,
+  WorkModeSelector,
   PlanningModeSelect,
   ProfileTypeahead,
 } from '../shared';
+import type { WorkMode } from '../shared';
 import { PhaseModelSelector } from '@/components/views/settings-view/model-defaults/phase-model-selector';
 import { ModelOverrideTrigger, useModelOverride } from '@/components/shared';
 import {
@@ -118,9 +119,11 @@ export function EditFeatureDialog({
 }: EditFeatureDialogProps) {
   const navigate = useNavigate();
   const [editingFeature, setEditingFeature] = useState<Feature | null>(feature);
-  const [useCurrentBranch, setUseCurrentBranch] = useState(() => {
-    // If feature has no branchName, default to using current branch
-    return !feature?.branchName;
+  // Derive initial workMode from feature's branchName
+  const [workMode, setWorkMode] = useState<WorkMode>(() => {
+    // If feature has a branchName, it's using 'custom' mode
+    // Otherwise, it's on 'current' branch (no worktree isolation)
+    return feature?.branchName ? 'custom' : 'current';
   });
   const [editFeaturePreviewMap, setEditFeaturePreviewMap] = useState<ImagePreviewMap>(
     () => new Map()
@@ -156,9 +159,6 @@ export function EditFeatureDialog({
   // Track if history dropdown is open
   const [showHistory, setShowHistory] = useState(false);
 
-  // Get worktrees setting from store
-  const { useWorktrees } = useAppStore();
-
   // Enhancement model override
   const enhancementOverride = useModelOverride({ phase: 'enhancementModel' });
 
@@ -167,8 +167,8 @@ export function EditFeatureDialog({
     if (feature) {
       setPlanningMode(feature.planningMode ?? 'skip');
       setRequirePlanApproval(feature.requirePlanApproval ?? false);
-      // If feature has no branchName, default to using current branch
-      setUseCurrentBranch(!feature.branchName);
+      // Derive workMode from feature's branchName
+      setWorkMode(feature.branchName ? 'custom' : 'current');
       // Reset history tracking state
       setOriginalDescription(feature.description ?? '');
       setDescriptionChangeSource(null);
@@ -222,14 +222,9 @@ export function EditFeatureDialog({
   const handleUpdate = () => {
     if (!editingFeature) return;
 
-    // Validate branch selection when "other branch" is selected and branch selector is enabled
+    // Validate branch selection for custom mode
     const isBranchSelectorEnabled = editingFeature.status === 'backlog';
-    if (
-      useWorktrees &&
-      isBranchSelectorEnabled &&
-      !useCurrentBranch &&
-      !editingFeature.branchName?.trim()
-    ) {
+    if (isBranchSelectorEnabled && workMode === 'custom' && !editingFeature.branchName?.trim()) {
       toast.error('Please select a branch name');
       return;
     }
@@ -242,12 +237,10 @@ export function EditFeatureDialog({
       ? (modelEntry.reasoningEffort ?? 'none')
       : 'none';
 
-    // Use current branch if toggle is on
-    // If currentBranch is provided (non-primary worktree), use it
-    // Otherwise (primary worktree), use empty string which means "unassigned" (show only on primary)
-    const finalBranchName = useCurrentBranch
-      ? currentBranch || ''
-      : editingFeature.branchName || '';
+    // For 'current' mode, use empty string (work on current branch)
+    // For 'auto' mode, use empty string (will be auto-generated in use-board-actions)
+    // For 'custom' mode, use the specified branch name
+    const finalBranchName = workMode === 'custom' ? editingFeature.branchName || '' : '';
 
     const updates = {
       title: editingFeature.title ?? '',
@@ -263,6 +256,7 @@ export function EditFeatureDialog({
       priority: editingFeature.priority ?? 2,
       planningMode,
       requirePlanApproval,
+      workMode,
     };
 
     // Determine if description changed and what source to use
@@ -688,27 +682,25 @@ export function EditFeatureDialog({
               </div>
             </div>
 
-            {/* Branch Selector */}
-            {useWorktrees && (
-              <div className="pt-2">
-                <BranchSelector
-                  useCurrentBranch={useCurrentBranch}
-                  onUseCurrentBranchChange={setUseCurrentBranch}
-                  branchName={editingFeature.branchName ?? ''}
-                  onBranchNameChange={(value) =>
-                    setEditingFeature({
-                      ...editingFeature,
-                      branchName: value,
-                    })
-                  }
-                  branchSuggestions={branchSuggestions}
-                  branchCardCounts={branchCardCounts}
-                  currentBranch={currentBranch}
-                  disabled={editingFeature.status !== 'backlog'}
-                  testIdPrefix="edit-feature"
-                />
-              </div>
-            )}
+            {/* Work Mode Selector */}
+            <div className="pt-2">
+              <WorkModeSelector
+                workMode={workMode}
+                onWorkModeChange={setWorkMode}
+                branchName={editingFeature.branchName ?? ''}
+                onBranchNameChange={(value) =>
+                  setEditingFeature({
+                    ...editingFeature,
+                    branchName: value,
+                  })
+                }
+                branchSuggestions={branchSuggestions}
+                branchCardCounts={branchCardCounts}
+                currentBranch={currentBranch}
+                disabled={editingFeature.status !== 'backlog'}
+                testIdPrefix="edit-feature-work-mode"
+              />
+            </div>
           </div>
         </div>
 
@@ -731,9 +723,8 @@ export function EditFeatureDialog({
               hotkeyActive={!!editingFeature}
               data-testid="confirm-edit-feature"
               disabled={
-                useWorktrees &&
                 editingFeature.status === 'backlog' &&
-                !useCurrentBranch &&
+                workMode === 'custom' &&
                 !editingFeature.branchName?.trim()
               }
             >

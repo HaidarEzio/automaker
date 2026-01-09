@@ -111,14 +111,32 @@ export function useBoardActions({
       planningMode: PlanningMode;
       requirePlanApproval: boolean;
       dependencies?: string[];
+      workMode?: 'current' | 'auto' | 'custom';
     }) => {
-      // Empty string means "unassigned" (show only on primary worktree) - convert to undefined
-      // Non-empty string is the actual branch name (for non-primary worktrees)
-      const finalBranchName = featureData.branchName || undefined;
+      const workMode = featureData.workMode || 'current';
 
-      // If worktrees enabled and a branch is specified, create the worktree now
-      // This ensures the worktree exists before the feature starts
-      if (useWorktrees && finalBranchName && currentProject) {
+      // Determine final branch name based on work mode:
+      // - 'current': No branch name, work on current branch (no worktree)
+      // - 'auto': Auto-generate branch name based on current branch
+      // - 'custom': Use the provided branch name
+      let finalBranchName: string | undefined;
+
+      if (workMode === 'current') {
+        // No worktree isolation - work directly on current branch
+        finalBranchName = undefined;
+      } else if (workMode === 'auto') {
+        // Auto-generate a branch name based on current branch and timestamp
+        const baseBranch = currentWorktreeBranch || 'main';
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substring(2, 6);
+        finalBranchName = `feature/${baseBranch}-${timestamp}-${randomSuffix}`;
+      } else {
+        // Custom mode - use provided branch name
+        finalBranchName = featureData.branchName || undefined;
+      }
+
+      // Create worktree for 'auto' or 'custom' modes when we have a branch name
+      if ((workMode === 'auto' || workMode === 'custom') && finalBranchName && currentProject) {
         try {
           const api = getElectronAPI();
           if (api?.worktree?.create) {
@@ -207,10 +225,10 @@ export function useBoardActions({
       persistFeatureUpdate,
       updateFeature,
       saveCategory,
-      useWorktrees,
       currentProject,
       onWorktreeCreated,
       onWorktreeAutoSelect,
+      currentWorktreeBranch,
     ]
   );
 
@@ -230,15 +248,29 @@ export function useBoardActions({
         priority: number;
         planningMode?: PlanningMode;
         requirePlanApproval?: boolean;
+        workMode?: 'current' | 'auto' | 'custom';
       },
       descriptionHistorySource?: 'enhance' | 'edit',
       enhancementMode?: 'improve' | 'technical' | 'simplify' | 'acceptance'
     ) => {
-      const finalBranchName = updates.branchName || undefined;
+      const workMode = updates.workMode || 'current';
 
-      // If worktrees enabled and a branch is specified, create the worktree now
-      // This ensures the worktree exists before the feature starts
-      if (useWorktrees && finalBranchName && currentProject) {
+      // Determine final branch name based on work mode
+      let finalBranchName: string | undefined;
+
+      if (workMode === 'current') {
+        finalBranchName = undefined;
+      } else if (workMode === 'auto') {
+        const baseBranch = currentWorktreeBranch || 'main';
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substring(2, 6);
+        finalBranchName = `feature/${baseBranch}-${timestamp}-${randomSuffix}`;
+      } else {
+        finalBranchName = updates.branchName || undefined;
+      }
+
+      // Create worktree for 'auto' or 'custom' modes when we have a branch name
+      if ((workMode === 'auto' || workMode === 'custom') && finalBranchName && currentProject) {
         try {
           const api = getElectronAPI();
           if (api?.worktree?.create) {
@@ -287,9 +319,9 @@ export function useBoardActions({
       persistFeatureUpdate,
       saveCategory,
       setEditingFeature,
-      useWorktrees,
       currentProject,
       onWorktreeCreated,
+      currentWorktreeBranch,
     ]
   );
 

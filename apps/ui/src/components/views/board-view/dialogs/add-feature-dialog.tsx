@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createLogger } from '@automaker/utils/logger';
 import {
   Dialog,
@@ -46,11 +46,12 @@ import {
 import {
   TestingTabContent,
   PrioritySelector,
-  BranchSelector,
+  WorkModeSelector,
   PlanningModeSelect,
   AncestorContextSection,
   ProfileTypeahead,
 } from '../shared';
+import type { WorkMode } from '../shared';
 import { PhaseModelSelector } from '@/components/views/settings-view/model-defaults/phase-model-selector';
 import { ModelOverrideTrigger, useModelOverride } from '@/components/shared';
 import {
@@ -84,6 +85,7 @@ type FeatureData = {
   planningMode: PlanningMode;
   requirePlanApproval: boolean;
   dependencies?: string[];
+  workMode: WorkMode;
 };
 
 interface AddFeatureDialogProps {
@@ -123,7 +125,7 @@ export function AddFeatureDialog({
 }: AddFeatureDialogProps) {
   const isSpawnMode = !!parentFeature;
   const navigate = useNavigate();
-  const [useCurrentBranch, setUseCurrentBranch] = useState(true);
+  const [workMode, setWorkMode] = useState<WorkMode>('current');
 
   // Form state
   const [title, setTitle] = useState('');
@@ -161,22 +163,27 @@ export function AddFeatureDialog({
   const [selectedAncestorIds, setSelectedAncestorIds] = useState<Set<string>>(new Set());
 
   // Get defaults from store
-  const { defaultPlanningMode, defaultRequirePlanApproval, defaultAIProfileId, useWorktrees } =
-    useAppStore();
+  const { defaultPlanningMode, defaultRequirePlanApproval, defaultAIProfileId } = useAppStore();
 
   // Enhancement model override
   const enhancementOverride = useModelOverride({ phase: 'enhancementModel' });
 
-  // Sync defaults when dialog opens
+  // Track previous open state to detect when dialog opens
+  const wasOpenRef = useRef(false);
+
+  // Sync defaults only when dialog opens (transitions from closed to open)
   useEffect(() => {
-    if (open) {
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+
+    if (justOpened) {
       const defaultProfile = defaultAIProfileId
         ? aiProfiles.find((p) => p.id === defaultAIProfileId)
         : null;
 
       setSkipTests(defaultSkipTests);
       setBranchName(defaultBranch || '');
-      setUseCurrentBranch(true);
+      setWorkMode('current');
       setPlanningMode(defaultPlanningMode);
       setRequirePlanApproval(defaultRequirePlanApproval);
 
@@ -248,7 +255,7 @@ export function AddFeatureDialog({
       return null;
     }
 
-    if (useWorktrees && !useCurrentBranch && !branchName.trim()) {
+    if (workMode === 'custom' && !branchName.trim()) {
       toast.error('Please select a branch name');
       return null;
     }
@@ -262,7 +269,10 @@ export function AddFeatureDialog({
       ? modelEntry.reasoningEffort || 'none'
       : 'none';
 
-    const finalBranchName = useCurrentBranch ? currentBranch || '' : branchName || '';
+    // For 'current' mode, use empty string (work on current branch)
+    // For 'auto' mode, use empty string (will be auto-generated in use-board-actions)
+    // For 'custom' mode, use the specified branch name
+    const finalBranchName = workMode === 'custom' ? branchName || '' : '';
 
     // Build final description with ancestor context in spawn mode
     let finalDescription = description;
@@ -303,6 +313,7 @@ export function AddFeatureDialog({
       planningMode,
       requirePlanApproval,
       dependencies: isSpawnMode && parentFeature ? [parentFeature.id] : undefined,
+      workMode,
     };
   };
 
@@ -318,7 +329,7 @@ export function AddFeatureDialog({
     setPriority(2);
     setSelectedProfileId(undefined);
     setModelEntry({ model: 'opus' });
-    setUseCurrentBranch(true);
+    setWorkMode('current');
     setPlanningMode(defaultPlanningMode);
     setRequirePlanApproval(defaultRequirePlanApproval);
     setPreviewMap(new Map());
@@ -643,21 +654,19 @@ export function AddFeatureDialog({
               </div>
             </div>
 
-            {/* Branch Selector */}
-            {useWorktrees && (
-              <div className="pt-2">
-                <BranchSelector
-                  useCurrentBranch={useCurrentBranch}
-                  onUseCurrentBranchChange={setUseCurrentBranch}
-                  branchName={branchName}
-                  onBranchNameChange={setBranchName}
-                  branchSuggestions={branchSuggestions}
-                  branchCardCounts={branchCardCounts}
-                  currentBranch={currentBranch}
-                  testIdPrefix="feature"
-                />
-              </div>
-            )}
+            {/* Work Mode Selector */}
+            <div className="pt-2">
+              <WorkModeSelector
+                workMode={workMode}
+                onWorkModeChange={setWorkMode}
+                branchName={branchName}
+                onBranchNameChange={setBranchName}
+                branchSuggestions={branchSuggestions}
+                branchCardCounts={branchCardCounts}
+                currentBranch={currentBranch}
+                testIdPrefix="feature-work-mode"
+              />
+            </div>
           </div>
         </div>
 
@@ -670,7 +679,7 @@ export function AddFeatureDialog({
               onClick={handleAddAndStart}
               variant="secondary"
               data-testid="confirm-add-and-start-feature"
-              disabled={useWorktrees && !useCurrentBranch && !branchName.trim()}
+              disabled={workMode === 'custom' && !branchName.trim()}
             >
               <Play className="w-4 h-4 mr-2" />
               Make
@@ -681,7 +690,7 @@ export function AddFeatureDialog({
             hotkey={{ key: 'Enter', cmdCtrl: true }}
             hotkeyActive={open}
             data-testid="confirm-add-feature"
-            disabled={useWorktrees && !useCurrentBranch && !branchName.trim()}
+            disabled={workMode === 'custom' && !branchName.trim()}
           >
             {isSpawnMode ? 'Spawn Task' : 'Add Feature'}
           </HotkeyButton>

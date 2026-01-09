@@ -523,7 +523,7 @@ export interface AppState {
   skipVerificationInAutoMode: boolean; // When true, auto-mode grabs features even if dependencies are not verified (only checks they're not running)
 
   // Worktree Settings
-  useWorktrees: boolean; // Whether to use git worktree isolation for features (default: false)
+  useWorktrees: boolean; // Whether to use git worktree isolation for features (default: true)
 
   // User-managed Worktrees (per-project)
   // projectPath -> { path: worktreePath or null for main, branch: branch name }
@@ -1172,7 +1172,7 @@ const initialState: AppState = {
   defaultSkipTests: true, // Default to manual verification (tests disabled)
   enableDependencyBlocking: true, // Default to enabled (show dependency blocking UI)
   skipVerificationInAutoMode: false, // Default to disabled (require dependencies to be verified)
-  useWorktrees: false, // Default to disabled (worktree feature is experimental)
+  useWorktrees: true, // Default to enabled (git worktree isolation)
   currentWorktreeByProject: {},
   worktreesByProject: {},
   showProfilesOnly: false, // Default to showing all options (not profiles only)

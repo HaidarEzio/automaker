@@ -560,7 +560,7 @@ export function hydrateStoreFromSettings(settings: GlobalSettings): void {
     defaultSkipTests: settings.defaultSkipTests ?? true,
     enableDependencyBlocking: settings.enableDependencyBlocking ?? true,
     skipVerificationInAutoMode: settings.skipVerificationInAutoMode ?? false,
-    useWorktrees: settings.useWorktrees ?? false,
+    useWorktrees: settings.useWorktrees ?? true,
     showProfilesOnly: settings.showProfilesOnly ?? false,
     defaultPlanningMode: settings.defaultPlanningMode ?? 'skip',
     defaultRequirePlanApproval: settings.defaultRequirePlanApproval ?? false,
