@@ -79,9 +79,7 @@ export function IconPicker({ selectedIcon, onSelectIcon }: IconPickerProps) {
           <div className="flex items-center gap-2 flex-1">
             {(() => {
               const IconComponent = getIconComponent(selectedIcon);
-              return IconComponent ? (
-                <IconComponent className="w-5 h-5 text-brand-500" />
-              ) : null;
+              return IconComponent ? <IconComponent className="w-5 h-5 text-brand-500" /> : null;
             })()}
             <span className="text-sm font-medium">{selectedIcon}</span>
           </div>
