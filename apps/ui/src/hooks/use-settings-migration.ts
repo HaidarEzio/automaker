@@ -31,7 +31,11 @@ import { useSetupStore } from '@/store/setup-store';
 import {
   DEFAULT_OPENCODE_MODEL,
   getAllOpencodeModelIds,
+  getAllCursorModelIds,
+  migrateCursorModelIds,
+  migratePhaseModelEntry,
   type GlobalSettings,
+  type CursorModelId,
 } from '@automaker/types';
 
 const logger = createLogger('SettingsMigration');
@@ -566,6 +570,19 @@ export function useSettingsMigration(): MigrationState {
  */
 export function hydrateStoreFromSettings(settings: GlobalSettings): void {
   const current = useAppStore.getState();
+
+  // Migrate Cursor models to canonical format
+  // IMPORTANT: Always use ALL available Cursor models to ensure new models are visible
+  // Users who had old settings with a subset of models should still see all available models
+  const allCursorModels = getAllCursorModelIds();
+  const migratedCursorDefault = migrateCursorModelIds([
+    settings.cursorDefaultModel ?? current.cursorDefaultModel ?? 'cursor-auto',
+  ])[0];
+  const validCursorModelIds = new Set(allCursorModels);
+  const sanitizedCursorDefaultModel = validCursorModelIds.has(migratedCursorDefault)
+    ? migratedCursorDefault
+    : ('cursor-auto' as CursorModelId);
+
   const validOpencodeModelIds = new Set(getAllOpencodeModelIds());
   const incomingEnabledOpencodeModels =
     settings.enabledOpencodeModels ?? current.enabledOpencodeModels;
@@ -631,15 +648,17 @@ export function hydrateStoreFromSettings(settings: GlobalSettings): void {
     useWorktrees: settings.useWorktrees ?? true,
     defaultPlanningMode: settings.defaultPlanningMode ?? 'skip',
     defaultRequirePlanApproval: settings.defaultRequirePlanApproval ?? false,
-    defaultFeatureModel: settings.defaultFeatureModel ?? { model: 'opus' },
+    defaultFeatureModel: migratePhaseModelEntry(settings.defaultFeatureModel) ?? {
+      model: 'claude-opus',
+    },
     muteDoneSound: settings.muteDoneSound ?? false,
     serverLogLevel: settings.serverLogLevel ?? 'info',
     enableRequestLogging: settings.enableRequestLogging ?? true,
-    enhancementModel: settings.enhancementModel ?? 'sonnet',
-    validationModel: settings.validationModel ?? 'opus',
+    enhancementModel: settings.enhancementModel ?? 'claude-sonnet',
+    validationModel: settings.validationModel ?? 'claude-opus',
     phaseModels: settings.phaseModels ?? current.phaseModels,
-    enabledCursorModels: settings.enabledCursorModels ?? current.enabledCursorModels,
-    cursorDefaultModel: settings.cursorDefaultModel ?? 'auto',
+    enabledCursorModels: allCursorModels, // Always use ALL cursor models
+    cursorDefaultModel: sanitizedCursorDefaultModel,
     enabledOpencodeModels: sanitizedEnabledOpencodeModels,
     opencodeDefaultModel: sanitizedOpencodeDefaultModel,
     enabledDynamicModelIds: sanitizedDynamicModelIds,

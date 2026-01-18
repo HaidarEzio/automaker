@@ -1393,12 +1393,12 @@ const initialState: AppState = {
   muteDoneSound: false, // Default to sound enabled (not muted)
   serverLogLevel: 'info', // Default to info level for server logs
   enableRequestLogging: true, // Default to enabled for HTTP request logging
-  enhancementModel: 'sonnet', // Default to sonnet for feature enhancement
-  validationModel: 'opus', // Default to opus for GitHub issue validation
+  enhancementModel: 'claude-sonnet', // Default to sonnet for feature enhancement
+  validationModel: 'claude-opus', // Default to opus for GitHub issue validation
   phaseModels: DEFAULT_PHASE_MODELS, // Phase-specific model configuration
   favoriteModels: [],
   enabledCursorModels: getAllCursorModelIds(), // All Cursor models enabled by default
-  cursorDefaultModel: 'auto', // Default to auto selection
+  cursorDefaultModel: 'cursor-auto', // Default to auto selection
   enabledCodexModels: getAllCodexModelIds(), // All Codex models enabled by default
   codexDefaultModel: 'codex-gpt-5.2-codex', // Default to GPT-5.2-Codex
   codexAutoLoadAgents: false, // Default to disabled (user must opt-in)

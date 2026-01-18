@@ -41,6 +41,7 @@ import {
   CREDENTIALS_VERSION,
   PROJECT_SETTINGS_VERSION,
 } from '../types/settings.js';
+import { migrateModelId, migrateCursorModelIds, migrateOpencodeModelIds } from '@automaker/types';
 
 const logger = createLogger('SettingsService');
 
@@ -127,10 +128,14 @@ export class SettingsService {
     // Migrate legacy enhancementModel/validationModel to phaseModels
     const migratedPhaseModels = this.migratePhaseModels(settings);
 
+    // Migrate model IDs to canonical format
+    const migratedModelSettings = this.migrateModelSettings(settings);
+
     // Apply any missing defaults (for backwards compatibility)
     let result: GlobalSettings = {
       ...DEFAULT_GLOBAL_SETTINGS,
       ...settings,
+      ...migratedModelSettings,
       keyboardShortcuts: {
         ...DEFAULT_GLOBAL_SETTINGS.keyboardShortcuts,
         ...settings.keyboardShortcuts,
@@ -226,19 +231,70 @@ export class SettingsService {
    * Convert a phase model value to PhaseModelEntry format
    *
    * Handles migration from string format (v2) to object format (v3).
-   * - String values like 'sonnet' become { model: 'sonnet' }
-   * - Object values are returned as-is (with type assertion)
+   * Also migrates legacy model IDs to canonical prefixed format.
+   * - String values like 'sonnet' become { model: 'claude-sonnet' }
+   * - Object values have their model ID migrated if needed
    *
    * @param value - Phase model value (string or PhaseModelEntry)
-   * @returns PhaseModelEntry object
+   * @returns PhaseModelEntry object with canonical model ID
    */
   private toPhaseModelEntry(value: string | PhaseModelEntry): PhaseModelEntry {
     if (typeof value === 'string') {
-      // v2 format: just a model string
-      return { model: value as PhaseModelEntry['model'] };
+      // v2 format: just a model string - migrate to canonical ID
+      return { model: migrateModelId(value) as PhaseModelEntry['model'] };
     }
-    // v3 format: already a PhaseModelEntry object
-    return value;
+    // v3 format: PhaseModelEntry object - migrate model ID if needed
+    return {
+      ...value,
+      model: migrateModelId(value.model) as PhaseModelEntry['model'],
+    };
+  }
+
+  /**
+   * Migrate model-related settings to canonical format
+   *
+   * Migrates:
+   * - enabledCursorModels: legacy IDs to cursor- prefixed
+   * - enabledOpencodeModels: legacy slash format to dash format
+   * - cursorDefaultModel: legacy ID to cursor- prefixed
+   *
+   * @param settings - Settings to migrate
+   * @returns Settings with migrated model IDs
+   */
+  private migrateModelSettings(settings: Partial<GlobalSettings>): Partial<GlobalSettings> {
+    const migrated: Partial<GlobalSettings> = { ...settings };
+
+    // Migrate Cursor models
+    if (settings.enabledCursorModels) {
+      migrated.enabledCursorModels = migrateCursorModelIds(
+        settings.enabledCursorModels as string[]
+      );
+    }
+
+    // Migrate Cursor default model
+    if (settings.cursorDefaultModel) {
+      const migratedDefault = migrateCursorModelIds([settings.cursorDefaultModel as string]);
+      if (migratedDefault.length > 0) {
+        migrated.cursorDefaultModel = migratedDefault[0];
+      }
+    }
+
+    // Migrate OpenCode models
+    if (settings.enabledOpencodeModels) {
+      migrated.enabledOpencodeModels = migrateOpencodeModelIds(
+        settings.enabledOpencodeModels as string[]
+      );
+    }
+
+    // Migrate OpenCode default model
+    if (settings.opencodeDefaultModel) {
+      const migratedDefault = migrateOpencodeModelIds([settings.opencodeDefaultModel as string]);
+      if (migratedDefault.length > 0) {
+        migrated.opencodeDefaultModel = migratedDefault[0];
+      }
+    }
+
+    return migrated;
   }
 
   /**

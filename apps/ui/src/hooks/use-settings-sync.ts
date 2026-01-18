@@ -22,7 +22,13 @@ import { waitForMigrationComplete, resetMigrationState } from './use-settings-mi
 import {
   DEFAULT_OPENCODE_MODEL,
   getAllOpencodeModelIds,
+  getAllCursorModelIds,
+  migrateCursorModelIds,
+  migrateOpencodeModelIds,
+  migratePhaseModelEntry,
   type GlobalSettings,
+  type CursorModelId,
+  type OpencodeModelId,
 } from '@automaker/types';
 
 const logger = createLogger('SettingsSync');
@@ -501,17 +507,35 @@ export async function refreshSettingsFromServer(): Promise<boolean> {
 
     const serverSettings = result.settings as unknown as GlobalSettings;
     const currentAppState = useAppStore.getState();
-    const validOpencodeModelIds = new Set(getAllOpencodeModelIds());
-    const incomingEnabledOpencodeModels =
-      serverSettings.enabledOpencodeModels ?? currentAppState.enabledOpencodeModels;
-    const sanitizedOpencodeDefaultModel = validOpencodeModelIds.has(
-      serverSettings.opencodeDefaultModel ?? currentAppState.opencodeDefaultModel
-    )
-      ? (serverSettings.opencodeDefaultModel ?? currentAppState.opencodeDefaultModel)
-      : DEFAULT_OPENCODE_MODEL;
-    const sanitizedEnabledOpencodeModels = Array.from(
-      new Set(incomingEnabledOpencodeModels.filter((modelId) => validOpencodeModelIds.has(modelId)))
+
+    // Cursor models - ALWAYS use ALL available models to ensure new models are visible
+    const allCursorModels = getAllCursorModelIds();
+    const validCursorModelIds = new Set(allCursorModels);
+
+    // Migrate Cursor default model
+    const migratedCursorDefault = migrateCursorModelIds([
+      serverSettings.cursorDefaultModel ?? 'cursor-auto',
+    ])[0];
+    const sanitizedCursorDefault = validCursorModelIds.has(migratedCursorDefault)
+      ? migratedCursorDefault
+      : ('cursor-auto' as CursorModelId);
+
+    // Migrate OpenCode models to canonical format
+    const migratedOpencodeModels = migrateOpencodeModelIds(
+      serverSettings.enabledOpencodeModels ?? []
     );
+    const validOpencodeModelIds = new Set(getAllOpencodeModelIds());
+    const sanitizedEnabledOpencodeModels = migratedOpencodeModels.filter((id) =>
+      validOpencodeModelIds.has(id)
+    );
+
+    // Migrate OpenCode default model
+    const migratedOpencodeDefault = migrateOpencodeModelIds([
+      serverSettings.opencodeDefaultModel ?? DEFAULT_OPENCODE_MODEL,
+    ])[0];
+    const sanitizedOpencodeDefaultModel = validOpencodeModelIds.has(migratedOpencodeDefault)
+      ? migratedOpencodeDefault
+      : DEFAULT_OPENCODE_MODEL;
 
     if (!sanitizedEnabledOpencodeModels.includes(sanitizedOpencodeDefaultModel)) {
       sanitizedEnabledOpencodeModels.push(sanitizedOpencodeDefaultModel);
@@ -522,6 +546,37 @@ export async function refreshSettingsFromServer(): Promise<boolean> {
     const sanitizedDynamicModelIds = persistedDynamicModelIds.filter(
       (modelId) => !modelId.startsWith('amazon-bedrock/')
     );
+
+    // Migrate phase models to canonical format
+    const migratedPhaseModels = serverSettings.phaseModels
+      ? {
+          enhancementModel: migratePhaseModelEntry(serverSettings.phaseModels.enhancementModel),
+          fileDescriptionModel: migratePhaseModelEntry(
+            serverSettings.phaseModels.fileDescriptionModel
+          ),
+          imageDescriptionModel: migratePhaseModelEntry(
+            serverSettings.phaseModels.imageDescriptionModel
+          ),
+          validationModel: migratePhaseModelEntry(serverSettings.phaseModels.validationModel),
+          specGenerationModel: migratePhaseModelEntry(
+            serverSettings.phaseModels.specGenerationModel
+          ),
+          featureGenerationModel: migratePhaseModelEntry(
+            serverSettings.phaseModels.featureGenerationModel
+          ),
+          backlogPlanningModel: migratePhaseModelEntry(
+            serverSettings.phaseModels.backlogPlanningModel
+          ),
+          projectAnalysisModel: migratePhaseModelEntry(
+            serverSettings.phaseModels.projectAnalysisModel
+          ),
+          suggestionsModel: migratePhaseModelEntry(serverSettings.phaseModels.suggestionsModel),
+          memoryExtractionModel: migratePhaseModelEntry(
+            serverSettings.phaseModels.memoryExtractionModel
+          ),
+          commitMessageModel: migratePhaseModelEntry(serverSettings.phaseModels.commitMessageModel),
+        }
+      : undefined;
 
     // Save theme to localStorage for fallback when server settings aren't available
     if (serverSettings.theme) {
@@ -539,15 +594,17 @@ export async function refreshSettingsFromServer(): Promise<boolean> {
       useWorktrees: serverSettings.useWorktrees,
       defaultPlanningMode: serverSettings.defaultPlanningMode,
       defaultRequirePlanApproval: serverSettings.defaultRequirePlanApproval,
-      defaultFeatureModel: serverSettings.defaultFeatureModel ?? { model: 'opus' },
+      defaultFeatureModel: serverSettings.defaultFeatureModel
+        ? migratePhaseModelEntry(serverSettings.defaultFeatureModel)
+        : { model: 'claude-opus' },
       muteDoneSound: serverSettings.muteDoneSound,
       serverLogLevel: serverSettings.serverLogLevel ?? 'info',
       enableRequestLogging: serverSettings.enableRequestLogging ?? true,
       enhancementModel: serverSettings.enhancementModel,
       validationModel: serverSettings.validationModel,
-      phaseModels: serverSettings.phaseModels,
-      enabledCursorModels: serverSettings.enabledCursorModels,
-      cursorDefaultModel: serverSettings.cursorDefaultModel,
+      phaseModels: migratedPhaseModels ?? serverSettings.phaseModels,
+      enabledCursorModels: allCursorModels, // Always use ALL cursor models
+      cursorDefaultModel: sanitizedCursorDefault,
       enabledOpencodeModels: sanitizedEnabledOpencodeModels,
       opencodeDefaultModel: sanitizedOpencodeDefaultModel,
       enabledDynamicModelIds: sanitizedDynamicModelIds,

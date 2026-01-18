@@ -495,10 +495,12 @@ export interface AutoModeAPI {
   status: (projectPath?: string) => Promise<{
     success: boolean;
     isRunning?: boolean;
+    isAutoLoopRunning?: boolean;
     currentFeatureId?: string | null;
     runningFeatures?: string[];
     runningProjects?: string[];
     runningCount?: number;
+    maxConcurrency?: number;
     error?: string;
   }>;
   runFeature: (
@@ -3226,7 +3228,7 @@ function createMockGitHubAPI(): GitHubAPI {
                 estimatedComplexity: 'moderate' as const,
               },
               projectPath,
-              model: model || 'sonnet',
+              model: model || 'claude-sonnet',
             })
           );
         }, 2000);

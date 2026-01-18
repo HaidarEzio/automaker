@@ -77,12 +77,15 @@ export type { ImageData, ImageContentBlock } from './image.js';
 // Model types and constants
 export {
   CLAUDE_MODEL_MAP,
+  CLAUDE_CANONICAL_MAP,
+  LEGACY_CLAUDE_ALIAS_MAP,
   CODEX_MODEL_MAP,
   CODEX_MODEL_IDS,
   REASONING_CAPABLE_MODELS,
   supportsReasoningEffort,
   getAllCodexModelIds,
   DEFAULT_MODELS,
+  type ClaudeCanonicalId,
   type ModelAlias,
   type CodexModelId,
   type AgentModel,
@@ -236,6 +239,18 @@ export {
   normalizeModelString,
   validateBareModelId,
 } from './provider-utils.js';
+
+// Model migration utilities
+export {
+  isLegacyCursorModelId,
+  isLegacyOpencodeModelId,
+  isLegacyClaudeAlias,
+  migrateModelId,
+  migrateCursorModelIds,
+  migrateOpencodeModelIds,
+  migratePhaseModelEntry,
+  getBareModelIdForCli,
+} from './model-migration.js';
 
 // Pipeline types
 export type {
