@@ -69,28 +69,13 @@ export function createAddRemoteHandler() {
         remoteUrl: string;
       };
 
-      if (!worktreePath) {
-        res.status(400).json({
-          success: false,
-          error: 'worktreePath required',
-        });
-        return;
-      }
-
-      if (!remoteName) {
-        res.status(400).json({
-          success: false,
-          error: 'remoteName required',
-        });
-        return;
-      }
-
-      if (!remoteUrl) {
-        res.status(400).json({
-          success: false,
-          error: 'remoteUrl required',
-        });
-        return;
+      // Validate required fields
+      const requiredFields = { worktreePath, remoteName, remoteUrl };
+      for (const [key, value] of Object.entries(requiredFields)) {
+        if (!value) {
+          res.status(400).json({ success: false, error: `${key} required` });
+          return;
+        }
       }
 
       // Validate remote name
@@ -129,8 +114,13 @@ export function createAddRemoteHandler() {
           });
           return;
         }
-      } catch {
-        // If git remote fails, continue with adding the remote
+      } catch (error) {
+        // If git remote fails, continue with adding the remote. Log for debugging.
+        logWorktreeError(
+          error,
+          'Checking for existing remotes failed, proceeding to add.',
+          worktreePath
+        );
       }
 
       // Add the remote using execFile with array arguments to prevent command injection
@@ -146,8 +136,13 @@ export function createAddRemoteHandler() {
           timeout: FETCH_TIMEOUT_MS,
         });
         fetchSucceeded = true;
-      } catch {
+      } catch (fetchError) {
         // Fetch failed (maybe offline or invalid URL), but remote was added successfully
+        logWorktreeError(
+          fetchError,
+          `Fetch from new remote '${remoteName}' failed (remote added successfully)`,
+          worktreePath
+        );
         fetchSucceeded = false;
       }
 

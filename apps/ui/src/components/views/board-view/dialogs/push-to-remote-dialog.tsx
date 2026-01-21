@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getHttpApiClient } from '@/lib/http-api-client';
+import { getErrorMessage } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Upload, RefreshCw, AlertTriangle, Sparkles, Plus, Link } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
@@ -30,16 +31,6 @@ interface RemoteInfo {
 }
 
 const logger = createLogger('PushToRemoteDialog');
-
-/**
- * Extracts error message from unknown error type
- */
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
-}
 
 interface PushToRemoteDialogProps {
   open: boolean;
@@ -67,41 +58,6 @@ export function PushToRemoteDialog({
   const [isAddingRemote, setIsAddingRemote] = useState(false);
   const [addRemoteError, setAddRemoteError] = useState<string | null>(null);
 
-  // Fetch remotes when dialog opens
-  useEffect(() => {
-    if (open && worktree) {
-      fetchRemotes();
-    }
-  }, [open, worktree]);
-
-  // Reset state when dialog closes
-  useEffect(() => {
-    if (!open) {
-      setSelectedRemote('');
-      setError(null);
-      setShowAddRemoteForm(false);
-      setNewRemoteName('origin');
-      setNewRemoteUrl('');
-      setAddRemoteError(null);
-    }
-  }, [open]);
-
-  // Auto-select default remote when remotes are loaded
-  useEffect(() => {
-    if (remotes.length > 0 && !selectedRemote) {
-      // Default to 'origin' if available, otherwise first remote
-      const defaultRemote = remotes.find((r) => r.name === 'origin') || remotes[0];
-      setSelectedRemote(defaultRemote.name);
-    }
-  }, [remotes, selectedRemote]);
-
-  // Show add remote form when no remotes
-  useEffect(() => {
-    if (!isLoading && remotes.length === 0) {
-      setShowAddRemoteForm(true);
-    }
-  }, [isLoading, remotes.length]);
-
   /**
    * Transforms API remote data to RemoteInfo format
    */
@@ -125,7 +81,7 @@ export function PushToRemoteDialog({
     }
   }, []);
 
-  const fetchRemotes = async () => {
+  const fetchRemotes = useCallback(async () => {
     if (!worktree) return;
 
     setIsLoading(true);
@@ -147,7 +103,42 @@ export function PushToRemoteDialog({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [worktree, transformRemoteData, updateRemotesState]);
+
+  // Fetch remotes when dialog opens
+  useEffect(() => {
+    if (open && worktree) {
+      fetchRemotes();
+    }
+  }, [open, worktree, fetchRemotes]);
+
+  // Reset state when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedRemote('');
+      setError(null);
+      setShowAddRemoteForm(false);
+      setNewRemoteName('origin');
+      setNewRemoteUrl('');
+      setAddRemoteError(null);
+    }
+  }, [open]);
+
+  // Auto-select default remote when remotes are loaded
+  useEffect(() => {
+    if (remotes.length > 0 && !selectedRemote) {
+      // Default to 'origin' if available, otherwise first remote
+      const defaultRemote = remotes.find((r) => r.name === 'origin') || remotes[0];
+      setSelectedRemote(defaultRemote.name);
+    }
+  }, [remotes, selectedRemote]);
+
+  // Show add remote form when no remotes (but not when there's an error)
+  useEffect(() => {
+    if (!isLoading && remotes.length === 0 && !error) {
+      setShowAddRemoteForm(true);
+    }
+  }, [isLoading, remotes.length, error]);
 
   const handleRefresh = async () => {
     if (!worktree) return;
