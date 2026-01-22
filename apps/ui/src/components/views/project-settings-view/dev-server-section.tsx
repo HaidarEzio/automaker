@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Play, Save, RotateCcw, Info, X } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
-import { getHttpApiClient } from '@/lib/http-api-client';
-import { toast } from 'sonner';
+import { useProjectSettings } from '@/hooks/queries';
+import { useUpdateProjectSettings } from '@/hooks/mutations';
 import type { Project } from '@/lib/electron';
 
 /** Preset dev server commands for quick selection */
@@ -25,77 +25,48 @@ interface DevServerSectionProps {
 }
 
 export function DevServerSection({ project }: DevServerSectionProps) {
+  // Fetch project settings using TanStack Query
+  const { data: projectSettings, isLoading, isError } = useProjectSettings(project.path);
+
+  // Mutation hook for updating project settings
+  const updateSettingsMutation = useUpdateProjectSettings(project.path);
+
+  // Local state for the input field
   const [devCommand, setDevCommand] = useState('');
   const [originalDevCommand, setOriginalDevCommand] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+
+  // Sync local state when project settings load or project changes
+  useEffect(() => {
+    // Reset local state when project changes to avoid showing stale values
+    setDevCommand('');
+    setOriginalDevCommand('');
+  }, [project.path]);
+
+  useEffect(() => {
+    if (projectSettings) {
+      const command = projectSettings.devCommand || '';
+      setDevCommand(command);
+      setOriginalDevCommand(command);
+    }
+  }, [projectSettings]);
 
   // Check if there are unsaved changes
   const hasChanges = devCommand !== originalDevCommand;
-
-  // Load project settings when project changes
-  useEffect(() => {
-    let isCancelled = false;
-    const currentPath = project.path;
-
-    const loadProjectSettings = async () => {
-      setIsLoading(true);
-      try {
-        const httpClient = getHttpApiClient();
-        const response = await httpClient.settings.getProject(currentPath);
-
-        // Avoid updating state if component unmounted or project changed
-        if (isCancelled) return;
-
-        if (response.success && response.settings) {
-          const command = response.settings.devCommand || '';
-          setDevCommand(command);
-          setOriginalDevCommand(command);
-        }
-      } catch (error) {
-        if (!isCancelled) {
-          console.error('Failed to load project settings:', error);
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadProjectSettings();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [project.path]);
+  const isSaving = updateSettingsMutation.isPending;
 
   // Save dev command
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
-    try {
-      const httpClient = getHttpApiClient();
-      const normalizedCommand = devCommand.trim();
-      const response = await httpClient.settings.updateProject(project.path, {
-        devCommand: normalizedCommand || undefined,
-      });
-
-      if (response.success) {
-        setDevCommand(normalizedCommand);
-        setOriginalDevCommand(normalizedCommand);
-        toast.success('Dev server command saved');
-      } else {
-        toast.error('Failed to save dev server command', {
-          description: response.error,
-        });
+  const handleSave = useCallback(() => {
+    const normalizedCommand = devCommand.trim();
+    updateSettingsMutation.mutate(
+      { devCommand: normalizedCommand || undefined },
+      {
+        onSuccess: () => {
+          setDevCommand(normalizedCommand);
+          setOriginalDevCommand(normalizedCommand);
+        },
       }
-    } catch (error) {
-      console.error('Failed to save dev server command:', error);
-      toast.error('Failed to save dev server command');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [project.path, devCommand]);
+    );
+  }, [devCommand, updateSettingsMutation]);
 
   // Reset to original value
   const handleReset = useCallback(() => {
@@ -151,6 +122,10 @@ export function DevServerSection({ project }: DevServerSectionProps) {
           <div className="flex items-center justify-center py-8">
             <Spinner size="md" />
           </div>
+        ) : isError ? (
+          <div className="flex items-center justify-center py-8 text-sm text-destructive">
+            Failed to load project settings. Please try again.
+          </div>
         ) : (
           <>
             {/* Dev Command Input */}
@@ -179,7 +154,7 @@ export function DevServerSection({ project }: DevServerSectionProps) {
                     size="sm"
                     onClick={handleClear}
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                    title="Clear to use auto-detection"
+                    aria-label="Clear dev command"
                   >
                     <X className="w-3.5 h-3.5" />
                   </Button>

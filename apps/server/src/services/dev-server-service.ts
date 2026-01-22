@@ -358,16 +358,19 @@ class DevServerService {
     // Determine the dev command to use
     let devCommand: { cmd: string; args: string[] };
 
-    if (customCommand) {
+    // Normalize custom command: trim whitespace and treat empty strings as undefined
+    const normalizedCustomCommand = customCommand?.trim();
+
+    if (normalizedCustomCommand) {
       // Use the provided custom command
-      devCommand = this.parseCustomCommand(customCommand);
+      devCommand = this.parseCustomCommand(normalizedCustomCommand);
       if (!devCommand.cmd) {
         return {
           success: false,
           error: 'Invalid custom command: command cannot be empty',
         };
       }
-      logger.debug(`Using custom command: ${customCommand}`);
+      logger.debug(`Using custom command: ${normalizedCustomCommand}`);
     } else {
       // Check for package.json when auto-detecting
       const packageJsonPath = path.join(worktreePath, 'package.json');
