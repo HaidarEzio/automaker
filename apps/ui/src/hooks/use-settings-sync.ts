@@ -64,6 +64,7 @@ const SETTINGS_FIELDS_TO_SYNC = [
   'defaultRequirePlanApproval',
   'defaultFeatureModel',
   'muteDoneSound',
+  'disableSplashScreen',
   'serverLogLevel',
   'enableRequestLogging',
   'showQueryDevtools',
@@ -710,6 +711,7 @@ export async function refreshSettingsFromServer(): Promise<boolean> {
         ? migratePhaseModelEntry(serverSettings.defaultFeatureModel)
         : { model: 'claude-opus' },
       muteDoneSound: serverSettings.muteDoneSound,
+      disableSplashScreen: serverSettings.disableSplashScreen ?? false,
       serverLogLevel: serverSettings.serverLogLevel ?? 'info',
       enableRequestLogging: serverSettings.enableRequestLogging ?? true,
       enhancementModel: serverSettings.enhancementModel,

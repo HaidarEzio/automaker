@@ -233,6 +233,7 @@ interface RunningFeature {
   abortController: AbortController;
   isAutoMode: boolean;
   startTime: number;
+  leaseCount: number;
   model?: string;
   provider?: ModelProvider;
 }
@@ -332,6 +333,54 @@ export class AutoModeService {
   constructor(events: EventEmitter, settingsService?: SettingsService) {
     this.events = events;
     this.settingsService = settingsService ?? null;
+  }
+
+  private acquireRunningFeature(params: {
+    featureId: string;
+    projectPath: string;
+    isAutoMode: boolean;
+    allowReuse?: boolean;
+    abortController?: AbortController;
+  }): RunningFeature {
+    const existing = this.runningFeatures.get(params.featureId);
+    if (existing) {
+      if (!params.allowReuse) {
+        throw new Error('already running');
+      }
+      existing.leaseCount = (existing.leaseCount ?? 1) + 1;
+      return existing;
+    }
+
+    const abortController = params.abortController ?? new AbortController();
+    const entry: RunningFeature = {
+      featureId: params.featureId,
+      projectPath: params.projectPath,
+      worktreePath: null,
+      branchName: null,
+      abortController,
+      isAutoMode: params.isAutoMode,
+      startTime: Date.now(),
+      leaseCount: 1,
+    };
+    this.runningFeatures.set(params.featureId, entry);
+    return entry;
+  }
+
+  private releaseRunningFeature(featureId: string, options?: { force?: boolean }): void {
+    const entry = this.runningFeatures.get(featureId);
+    if (!entry) {
+      return;
+    }
+
+    if (options?.force) {
+      this.runningFeatures.delete(featureId);
+      return;
+    }
+
+    entry.leaseCount = (entry.leaseCount ?? 1) - 1;
+    if (entry.leaseCount <= 0) {
+      this.runningFeatures.delete(featureId);
+    }
   }
 
   /**
@@ -1076,24 +1125,17 @@ export class AutoModeService {
     providedWorktreePath?: string,
     options?: {
       continuationPrompt?: string;
+      /** Internal flag: set to true when called from a method that already tracks the feature */
+      _calledInternally?: boolean;
     }
   ): Promise<void> {
-    if (this.runningFeatures.has(featureId)) {
-      throw new Error('already running');
-    }
-
-    // Add to running features immediately to prevent race conditions
-    const abortController = new AbortController();
-    const tempRunningFeature: RunningFeature = {
+    const tempRunningFeature = this.acquireRunningFeature({
       featureId,
       projectPath,
-      worktreePath: null,
-      branchName: null,
-      abortController,
       isAutoMode,
-      startTime: Date.now(),
-    };
-    this.runningFeatures.set(featureId, tempRunningFeature);
+      allowReuse: options?._calledInternally,
+    });
+    const abortController = tempRunningFeature.abortController;
 
     // Save execution state when feature starts
     if (isAutoMode) {
@@ -1130,9 +1172,8 @@ export class AutoModeService {
           continuationPrompt = continuationPrompt.replace(/\{\{approvedPlan\}\}/g, planContent);
 
           // Recursively call executeFeature with the continuation prompt
-          // Remove from running features temporarily, it will be added back
-          this.runningFeatures.delete(featureId);
-          return this.executeFeature(
+          // Feature is already tracked, the recursive call will reuse the entry
+          return await this.executeFeature(
             projectPath,
             featureId,
             useWorktrees,
@@ -1140,6 +1181,7 @@ export class AutoModeService {
             providedWorktreePath,
             {
               continuationPrompt,
+              _calledInternally: true,
             }
           );
         }
@@ -1149,9 +1191,8 @@ export class AutoModeService {
           logger.info(
             `Feature ${featureId} has existing context, resuming instead of starting fresh`
           );
-          // Remove from running features temporarily, resumeFeature will add it back
-          this.runningFeatures.delete(featureId);
-          return this.resumeFeature(projectPath, featureId, useWorktrees);
+          // Feature is already tracked, resumeFeature will reuse the entry
+          return await this.resumeFeature(projectPath, featureId, useWorktrees, true);
         }
       }
 
@@ -1401,7 +1442,7 @@ export class AutoModeService {
       logger.info(
         `Pending approvals at cleanup: ${Array.from(this.pendingApprovals.keys()).join(', ') || 'none'}`
       );
-      this.runningFeatures.delete(featureId);
+      this.releaseRunningFeature(featureId);
 
       // Update execution state after feature completes
       if (this.autoLoopRunning && projectPath) {
@@ -1581,7 +1622,7 @@ Complete the pipeline step instructions above. Review the previous work and appl
 
     // Remove from running features immediately to allow resume
     // The abort signal will still propagate to stop any ongoing execution
-    this.runningFeatures.delete(featureId);
+    this.releaseRunningFeature(featureId, { force: true });
 
     return true;
   }
@@ -1589,50 +1630,67 @@ Complete the pipeline step instructions above. Review the previous work and appl
   /**
    * Resume a feature (continues from saved context)
    */
-  async resumeFeature(projectPath: string, featureId: string, useWorktrees = false): Promise<void> {
-    if (this.runningFeatures.has(featureId)) {
-      throw new Error('already running');
-    }
-
-    // Load feature to check status
-    const feature = await this.loadFeature(projectPath, featureId);
-    if (!feature) {
-      throw new Error(`Feature ${featureId} not found`);
-    }
-
-    // Check if feature is stuck in a pipeline step
-    const pipelineInfo = await this.detectPipelineStatus(
-      projectPath,
+  async resumeFeature(
+    projectPath: string,
+    featureId: string,
+    useWorktrees = false,
+    /** Internal flag: set to true when called from a method that already tracks the feature */
+    _calledInternally = false
+  ): Promise<void> {
+    this.acquireRunningFeature({
       featureId,
-      (feature.status || '') as FeatureStatusWithPipeline
-    );
+      projectPath,
+      isAutoMode: false,
+      allowReuse: _calledInternally,
+    });
 
-    if (pipelineInfo.isPipeline) {
-      // Feature stuck in pipeline - use pipeline resume
-      return this.resumePipelineFeature(projectPath, feature, useWorktrees, pipelineInfo);
-    }
-
-    // Normal resume flow for non-pipeline features
-    // Check if context exists in .automaker directory
-    const featureDir = getFeatureDir(projectPath, featureId);
-    const contextPath = path.join(featureDir, 'agent-output.md');
-
-    let hasContext = false;
     try {
-      await secureFs.access(contextPath);
-      hasContext = true;
-    } catch {
-      // No context
-    }
+      // Load feature to check status
+      const feature = await this.loadFeature(projectPath, featureId);
+      if (!feature) {
+        throw new Error(`Feature ${featureId} not found`);
+      }
 
-    if (hasContext) {
-      // Load previous context and continue
-      const context = (await secureFs.readFile(contextPath, 'utf-8')) as string;
-      return this.executeFeatureWithContext(projectPath, featureId, context, useWorktrees);
-    }
+      // Check if feature is stuck in a pipeline step
+      const pipelineInfo = await this.detectPipelineStatus(
+        projectPath,
+        featureId,
+        (feature.status || '') as FeatureStatusWithPipeline
+      );
 
-    // No context, start fresh - executeFeature will handle adding to runningFeatures
-    return this.executeFeature(projectPath, featureId, useWorktrees, false);
+      if (pipelineInfo.isPipeline) {
+        // Feature stuck in pipeline - use pipeline resume
+        // Pass _alreadyTracked to prevent double-tracking
+        return await this.resumePipelineFeature(projectPath, feature, useWorktrees, pipelineInfo);
+      }
+
+      // Normal resume flow for non-pipeline features
+      // Check if context exists in .automaker directory
+      const featureDir = getFeatureDir(projectPath, featureId);
+      const contextPath = path.join(featureDir, 'agent-output.md');
+
+      let hasContext = false;
+      try {
+        await secureFs.access(contextPath);
+        hasContext = true;
+      } catch {
+        // No context
+      }
+
+      if (hasContext) {
+        // Load previous context and continue
+        // executeFeatureWithContext -> executeFeature will see feature is already tracked
+        const context = (await secureFs.readFile(contextPath, 'utf-8')) as string;
+        return await this.executeFeatureWithContext(projectPath, featureId, context, useWorktrees);
+      }
+
+      // No context, start fresh - executeFeature will see feature is already tracked
+      return await this.executeFeature(projectPath, featureId, useWorktrees, false, undefined, {
+        _calledInternally: true,
+      });
+    } finally {
+      this.releaseRunningFeature(featureId);
+    }
   }
 
   /**
@@ -1682,7 +1740,9 @@ Complete the pipeline step instructions above. Review the previous work and appl
       // Reset status to in_progress and start fresh
       await this.updateFeatureStatus(projectPath, featureId, 'in_progress');
 
-      return this.executeFeature(projectPath, featureId, useWorktrees, false);
+      return this.executeFeature(projectPath, featureId, useWorktrees, false, undefined, {
+        _calledInternally: true,
+      });
     }
 
     // Edge Case 2: Step no longer exists in pipeline config
@@ -1828,17 +1888,14 @@ Complete the pipeline step instructions above. Review the previous work and appl
       `[AutoMode] Resuming pipeline for feature ${featureId} from step ${startFromStepIndex + 1}/${sortedSteps.length}`
     );
 
-    // Add to running features immediately
-    const abortController = new AbortController();
-    this.runningFeatures.set(featureId, {
+    const runningEntry = this.acquireRunningFeature({
       featureId,
       projectPath,
-      worktreePath: null, // Will be set below
-      branchName: feature.branchName ?? null,
-      abortController,
       isAutoMode: false,
-      startTime: Date.now(),
+      allowReuse: true,
     });
+    const abortController = runningEntry.abortController;
+    runningEntry.branchName = feature.branchName ?? null;
 
     try {
       // Validate project path
@@ -1863,11 +1920,8 @@ Complete the pipeline step instructions above. Review the previous work and appl
       validateWorkingDirectory(workDir);
 
       // Update running feature with worktree info
-      const runningFeature = this.runningFeatures.get(featureId);
-      if (runningFeature) {
-        runningFeature.worktreePath = worktreePath;
-        runningFeature.branchName = branchName ?? null;
-      }
+      runningEntry.worktreePath = worktreePath;
+      runningEntry.branchName = branchName ?? null;
 
       // Emit resume event
       this.emitAutoModeEvent('auto_mode_feature_start', {
@@ -1945,7 +1999,7 @@ Complete the pipeline step instructions above. Review the previous work and appl
         });
       }
     } finally {
-      this.runningFeatures.delete(featureId);
+      this.releaseRunningFeature(featureId);
     }
   }
 
@@ -1962,11 +2016,12 @@ Complete the pipeline step instructions above. Review the previous work and appl
     // Validate project path early for fast failure
     validateWorkingDirectory(projectPath);
 
-    if (this.runningFeatures.has(featureId)) {
-      throw new Error(`Feature ${featureId} is already running`);
-    }
-
-    const abortController = new AbortController();
+    const runningEntry = this.acquireRunningFeature({
+      featureId,
+      projectPath,
+      isAutoMode: false,
+    });
+    const abortController = runningEntry.abortController;
 
     // Load feature info for context FIRST to get branchName
     const feature = await this.loadFeature(projectPath, featureId);
@@ -2048,17 +2103,10 @@ Address the follow-up instructions above. Review the previous work and make the 
     const provider = ProviderFactory.getProviderNameForModel(model);
     logger.info(`Follow-up for feature ${featureId} using model: ${model}, provider: ${provider}`);
 
-    this.runningFeatures.set(featureId, {
-      featureId,
-      projectPath,
-      worktreePath,
-      branchName,
-      abortController,
-      isAutoMode: false,
-      startTime: Date.now(),
-      model,
-      provider,
-    });
+    runningEntry.worktreePath = worktreePath;
+    runningEntry.branchName = branchName;
+    runningEntry.model = model;
+    runningEntry.provider = provider;
 
     try {
       // Update feature status to in_progress BEFORE emitting event
@@ -2206,7 +2254,7 @@ Address the follow-up instructions above. Review the previous work and make the 
         }
       }
     } finally {
-      this.runningFeatures.delete(featureId);
+      this.releaseRunningFeature(featureId);
     }
   }
 
@@ -4225,6 +4273,7 @@ After generating the revised spec, output:
 
     return this.executeFeature(projectPath, featureId, useWorktrees, false, undefined, {
       continuationPrompt: prompt,
+      _calledInternally: true,
     });
   }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
-import { Palette, Moon, Sun, Type } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Palette, Moon, Sun, Type, Sparkles } from 'lucide-react';
 import { darkThemes, lightThemes } from '@/config/theme-options';
 import {
   UI_SANS_FONT_OPTIONS,
@@ -18,7 +19,14 @@ interface AppearanceSectionProps {
 }
 
 export function AppearanceSection({ effectiveTheme, onThemeChange }: AppearanceSectionProps) {
-  const { fontFamilySans, fontFamilyMono, setFontSans, setFontMono } = useAppStore();
+  const {
+    fontFamilySans,
+    fontFamilyMono,
+    setFontSans,
+    setFontMono,
+    disableSplashScreen,
+    setDisableSplashScreen,
+  } = useAppStore();
 
   // Determine if current theme is light or dark
   const isLightTheme = lightThemes.some((t) => t.value === effectiveTheme);
@@ -187,6 +195,30 @@ export function AppearanceSection({ effectiveTheme, onThemeChange }: AppearanceS
                 Used for code blocks and monospaced text
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Splash Screen Section */}
+        <div className="space-y-4 pt-6 border-t border-border/50">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-4 h-4 text-muted-foreground" />
+            <Label className="text-foreground font-medium">Startup</Label>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="disable-splash-screen" className="text-sm">
+                Disable Splash Screen
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Skip the animated splash screen when the app starts
+              </p>
+            </div>
+            <Switch
+              id="disable-splash-screen"
+              checked={disableSplashScreen}
+              onCheckedChange={setDisableSplashScreen}
+            />
           </div>
         </div>
       </div>

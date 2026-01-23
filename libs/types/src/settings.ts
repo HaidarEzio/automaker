@@ -861,6 +861,10 @@ export interface GlobalSettings {
   /** Mute completion notification sound */
   muteDoneSound: boolean;
 
+  // Splash Screen
+  /** Disable the splash screen overlay on app startup */
+  disableSplashScreen: boolean;
+
   // Server Logging Preferences
   /** Log level for the API server (error, warn, info, debug). Default: info */
   serverLogLevel?: ServerLogLevel;
@@ -1320,6 +1324,7 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   defaultRequirePlanApproval: false,
   defaultFeatureModel: { model: 'claude-opus' }, // Use canonical ID
   muteDoneSound: false,
+  disableSplashScreen: false,
   serverLogLevel: 'info',
   enableRequestLogging: true,
   showQueryDevtools: true,

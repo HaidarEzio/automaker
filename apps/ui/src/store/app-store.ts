@@ -686,6 +686,9 @@ export interface AppState {
   // Audio Settings
   muteDoneSound: boolean; // When true, mute the notification sound when agents complete (default: false)
 
+  // Splash Screen Settings
+  disableSplashScreen: boolean; // When true, skip showing the splash screen overlay on startup
+
   // Server Log Level Settings
   serverLogLevel: ServerLogLevel; // Log level for the API server (error, warn, info, debug)
   enableRequestLogging: boolean; // Enable HTTP request logging (Morgan)
@@ -1183,6 +1186,9 @@ export interface AppActions {
   // Audio Settings actions
   setMuteDoneSound: (muted: boolean) => void;
 
+  // Splash Screen actions
+  setDisableSplashScreen: (disabled: boolean) => void;
+
   // Server Log Level actions
   setServerLogLevel: (level: ServerLogLevel) => void;
   setEnableRequestLogging: (enabled: boolean) => void;
@@ -1502,6 +1508,7 @@ const initialState: AppState = {
   worktreesByProject: {},
   keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS, // Default keyboard shortcuts
   muteDoneSound: false, // Default to sound enabled (not muted)
+  disableSplashScreen: false, // Default to showing splash screen
   serverLogLevel: 'info', // Default to info level for server logs
   enableRequestLogging: true, // Default to enabled for HTTP request logging
   showQueryDevtools: true, // Default to enabled (only shown in dev mode anyway)
@@ -2625,6 +2632,9 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
 
   // Audio Settings actions
   setMuteDoneSound: (muted) => set({ muteDoneSound: muted }),
+
+  // Splash Screen actions
+  setDisableSplashScreen: (disabled) => set({ disableSplashScreen: disabled }),
 
   // Server Log Level actions
   setServerLogLevel: (level) => set({ serverLogLevel: level }),
