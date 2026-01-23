@@ -579,6 +579,7 @@ export function DashboardView() {
                 size="icon"
                 onClick={() => navigate({ to: '/overview' })}
                 title="Projects Overview"
+                data-testid="projects-overview-button-mobile"
               >
                 <LayoutDashboard className="w-4 h-4" />
               </Button>

@@ -120,15 +120,18 @@ export function RecentActivityFeed({ activities, maxItems = 10 }: RecentActivity
   const handleActivityClick = useCallback(
     async (activity: RecentActivity) => {
       try {
-        const initResult = await initializeProject(
-          // We need to find the project path - use projectId as workaround
-          // In real implementation, this would look up the path from projects list
-          activity.projectId
-        );
-
-        // Navigate to the project
-        const projectPath = activity.projectId;
+        // Get project path from the activity (projectId is actually the path in our data model)
+        const projectPath = activity.projectPath || activity.projectId;
         const projectName = activity.projectName;
+
+        const initResult = await initializeProject(projectPath);
+
+        if (!initResult.success) {
+          toast.error('Failed to initialize project', {
+            description: initResult.error || 'Unknown error',
+          });
+          return;
+        }
 
         upsertAndSetCurrentProject(projectPath, projectName);
 
@@ -145,6 +148,16 @@ export function RecentActivityFeed({ activities, maxItems = 10 }: RecentActivity
       }
     },
     [navigate, upsertAndSetCurrentProject]
+  );
+
+  const handleActivityKeyDown = useCallback(
+    (e: React.KeyboardEvent, activity: RecentActivity) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleActivityClick(activity);
+      }
+    },
+    [handleActivityClick]
   );
 
   if (displayActivities.length === 0) {
@@ -166,8 +179,12 @@ export function RecentActivityFeed({ activities, maxItems = 10 }: RecentActivity
         return (
           <div
             key={activity.id}
+            role="button"
+            tabIndex={0}
             className="group flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
             onClick={() => handleActivityClick(activity)}
+            onKeyDown={(e) => handleActivityKeyDown(e, activity)}
+            aria-label={`${config.label}: ${activity.featureName || activity.message} in ${activity.projectName}`}
             data-testid={`activity-item-${activity.id}`}
           >
             {/* Icon */}

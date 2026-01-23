@@ -501,7 +501,12 @@ export function OverviewView() {
 
             {/* Footer timestamp */}
             <div className="text-center text-xs text-muted-foreground pt-4">
-              Last updated: {new Date(overview.generatedAt).toLocaleTimeString()}
+              Last updated:{' '}
+              {new Date(overview.generatedAt).toLocaleTimeString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })}
             </div>
           </div>
         )}

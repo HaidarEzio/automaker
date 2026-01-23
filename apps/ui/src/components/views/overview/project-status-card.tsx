@@ -87,8 +87,17 @@ export function ProjectStatusCard({ project, onProjectClick }: ProjectStatusCard
     }
   }, [project, onProjectClick, upsertAndSetCurrentProject, navigate]);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  };
+
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={cn(
         'group relative rounded-xl border bg-card/60 backdrop-blur-sm transition-all duration-300 cursor-pointer hover:-translate-y-0.5',
         project.healthStatus === 'active' && 'border-green-500/30 hover:border-green-500/50',
@@ -98,6 +107,8 @@ export function ProjectStatusCard({ project, onProjectClick }: ProjectStatusCard
         project.healthStatus === 'idle' && 'border-border hover:border-brand-500/40'
       )}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      aria-label={`Open project ${project.projectName}`}
       data-testid={`project-status-card-${project.projectId}`}
     >
       <div className="p-4">

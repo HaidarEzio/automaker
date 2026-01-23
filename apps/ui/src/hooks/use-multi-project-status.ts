@@ -64,7 +64,7 @@ async function fetchProjectsOverview(): Promise<MultiProjectOverview> {
   const data = await response.json();
 
   if (!data.success) {
-    throw new Error(data.error?.message || 'Failed to fetch project overview');
+    throw new Error(data.error || 'Failed to fetch project overview');
   }
 
   return {

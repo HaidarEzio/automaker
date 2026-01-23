@@ -11,7 +11,7 @@ import { initializeProject } from '@/lib/project-init';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { ProjectStatus } from '@automaker/types';
-import { Bot, Activity, Folder, ArrowRight } from 'lucide-react';
+import { Bot, Activity, GitBranch, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface RunningAgentsPanelProps {
@@ -65,6 +65,16 @@ export function RunningAgentsPanel({ projects }: RunningAgentsPanelProps) {
     [navigate, upsertAndSetCurrentProject]
   );
 
+  const handleAgentKeyDown = useCallback(
+    (e: React.KeyboardEvent, agent: RunningAgentInfo) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleAgentClick(agent);
+      }
+    },
+    [handleAgentClick]
+  );
+
   if (runningAgents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -80,8 +90,12 @@ export function RunningAgentsPanel({ projects }: RunningAgentsPanelProps) {
       {runningAgents.map((agent) => (
         <div
           key={agent.projectId}
+          role="button"
+          tabIndex={0}
           className="group flex items-center gap-3 p-3 rounded-lg border border-green-500/20 bg-green-500/5 hover:bg-green-500/10 cursor-pointer transition-all"
           onClick={() => handleAgentClick(agent)}
+          onKeyDown={(e) => handleAgentKeyDown(e, agent)}
+          aria-label={`View running agent for ${agent.projectName}`}
           data-testid={`running-agent-${agent.projectId}`}
         >
           {/* Animated icon */}
@@ -111,7 +125,7 @@ export function RunningAgentsPanel({ projects }: RunningAgentsPanelProps) {
               )}
               {agent.activeBranch && (
                 <span className="flex items-center gap-1">
-                  <Folder className="w-3 h-3" />
+                  <GitBranch className="w-3 h-3" />
                   {agent.activeBranch}
                 </span>
               )}

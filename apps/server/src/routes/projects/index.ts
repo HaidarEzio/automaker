@@ -3,7 +3,7 @@
  */
 
 import { Router } from 'express';
-import { FeatureLoader } from '../../services/feature-loader.js';
+import type { FeatureLoader } from '../../services/feature-loader.js';
 import type { AutoModeService } from '../../services/auto-mode-service.js';
 import type { SettingsService } from '../../services/settings-service.js';
 import type { NotificationService } from '../../services/notification-service.js';

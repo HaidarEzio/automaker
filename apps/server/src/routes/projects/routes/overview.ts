@@ -188,6 +188,7 @@ export function createOverviewHandler(
             unreadNotificationCount,
           };
         } catch (error) {
+          logError(error, `Failed to load project status: ${projectRef.name}`);
           // Return a minimal status for projects that fail to load
           return {
             projectId: projectRef.id,
