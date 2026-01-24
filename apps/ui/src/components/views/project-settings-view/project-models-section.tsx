@@ -104,7 +104,10 @@ function FeatureDefaultModelOverrideSection({ project }: { project: Project }) {
   const hasOverride = !!projectOverride;
   const effectiveValue = projectOverride || globalValue;
 
-  // Get display name for a model
+  /**
+   * Formats a user-friendly model label using provider metadata when available,
+   * falling back to known Claude aliases or the raw model id.
+   */
   const getModelDisplayName = (entry: PhaseModelEntry): string => {
     if (entry.providerId) {
       const provider = (claudeCompatibleProviders || []).find((p) => p.id === entry.providerId);
@@ -127,10 +130,16 @@ function FeatureDefaultModelOverrideSection({ project }: { project: Project }) {
     return modelMap[entry.model] || entry.model;
   };
 
+  /**
+   * Clears the project-level model override for this scope.
+   */
   const handleClearOverride = () => {
     setProjectDefaultFeatureModel(project.id, null);
   };
 
+  /**
+   * Sets the project-level model override for this scope.
+   */
   const handleSetOverride = (entry: PhaseModelEntry) => {
     setProjectDefaultFeatureModel(project.id, entry);
   };
@@ -209,6 +218,10 @@ function FeatureDefaultModelOverrideSection({ project }: { project: Project }) {
   );
 }
 
+/**
+ * Renders a single phase override row, showing the effective model
+ * (project override or global default) and wiring selector/reset actions.
+ */
 function PhaseOverrideItem({
   phase,
   project,
@@ -225,7 +238,10 @@ function PhaseOverrideItem({
   const hasOverride = !!projectOverride;
   const effectiveValue = projectOverride || globalValue;
 
-  // Get display name for a model
+  /**
+   * Formats a user-friendly model label using provider metadata when available,
+   * falling back to known Claude aliases or the raw model id.
+   */
   const getModelDisplayName = (entry: PhaseModelEntry): string => {
     if (entry.providerId) {
       const provider = (claudeCompatibleProviders || []).find((p) => p.id === entry.providerId);
@@ -248,10 +264,16 @@ function PhaseOverrideItem({
     return modelMap[entry.model] || entry.model;
   };
 
+  /**
+   * Clears the project-level model override for this scope.
+   */
   const handleClearOverride = () => {
     setProjectPhaseModelOverride(project.id, phase.key, null);
   };
 
+  /**
+   * Sets the project-level model override for this scope.
+   */
   const handleSetOverride = (entry: PhaseModelEntry) => {
     setProjectPhaseModelOverride(project.id, phase.key, entry);
   };
@@ -315,6 +337,10 @@ function PhaseOverrideItem({
   );
 }
 
+/**
+ * Renders a titled group of phase override rows and resolves each phase's
+ * global default model with a fallback to DEFAULT_PHASE_MODELS.
+ */
 function PhaseGroup({
   title,
   subtitle,
@@ -349,6 +375,7 @@ function PhaseGroup({
     </div>
   );
 }
+
 /**
  * Renders the per-project model overrides UI for all phase models.
  */
@@ -366,6 +393,9 @@ export function ProjectModelsSection({ project }: ProjectModelsSectionProps) {
   const hasEnabledProviders =
     claudeCompatibleProviders && claudeCompatibleProviders.some((p) => p.enabled !== false);
 
+  /**
+   * Clears all project-level phase model overrides for this project.
+   */
   const handleClearAll = () => {
     clearAllProjectPhaseModelOverrides(project.id);
   };
