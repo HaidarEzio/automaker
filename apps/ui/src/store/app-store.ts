@@ -37,6 +37,8 @@ import type {
   ClaudeApiProfile,
   ClaudeCompatibleProvider,
   SidebarStyle,
+  ParsedTask,
+  PlanSpec,
 } from '@automaker/types';
 import {
   getAllCursorModelIds,
@@ -65,6 +67,8 @@ export type {
   ServerLogLevel,
   FeatureTextFilePath,
   FeatureImagePath,
+  ParsedTask,
+  PlanSpec,
 };
 
 export type ViewMode =
@@ -469,28 +473,7 @@ export interface Feature extends Omit<
   planSpec?: PlanSpec; // Explicit planSpec type to override BaseFeature's index signature
 }
 
-// Parsed task from spec (for spec and full planning modes)
-export interface ParsedTask {
-  id: string; // e.g., "T001"
-  description: string; // e.g., "Create user model"
-  filePath?: string; // e.g., "src/models/user.ts"
-  phase?: string; // e.g., "Phase 1: Foundation" (for full mode)
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-}
-
-// PlanSpec status for feature planning/specification
-export interface PlanSpec {
-  status: 'pending' | 'generating' | 'generated' | 'approved' | 'rejected';
-  content?: string; // The actual spec/plan markdown content
-  version: number;
-  generatedAt?: string; // ISO timestamp
-  approvedAt?: string; // ISO timestamp
-  reviewedByUser: boolean; // True if user has seen the spec
-  tasksCompleted?: number;
-  tasksTotal?: number;
-  currentTaskId?: string; // ID of the task currently being worked on
-  tasks?: ParsedTask[]; // Parsed tasks from the spec
-}
+// ParsedTask and PlanSpec types are now imported from @automaker/types
 
 // File tree node for project analysis
 export interface FileTreeNode {

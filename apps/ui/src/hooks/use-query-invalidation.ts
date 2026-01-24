@@ -141,11 +141,13 @@ export function useAutoModeQueryInvalidation(projectPath: string | undefined) {
         });
       }
 
-      // Invalidate specific feature when it starts or has phase changes
+      // Invalidate specific feature when it starts, has phase changes, or task status updates
       if (
         (event.type === 'auto_mode_feature_start' ||
           event.type === 'auto_mode_phase' ||
           event.type === 'auto_mode_phase_complete' ||
+          event.type === 'auto_mode_task_status' ||
+          event.type === 'auto_mode_summary' ||
           event.type === 'pipeline_step_started') &&
         'featureId' in event
       ) {

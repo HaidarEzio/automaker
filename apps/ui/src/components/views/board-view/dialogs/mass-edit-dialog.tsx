@@ -22,7 +22,7 @@ import {
 } from '../shared';
 import type { WorkMode } from '../shared';
 import { PhaseModelSelector } from '@/components/views/settings-view/model-defaults/phase-model-selector';
-import { isCursorModel, isClaudeModel, type PhaseModelEntry } from '@automaker/types';
+import { isCursorModel, type PhaseModelEntry } from '@automaker/types';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -236,7 +236,8 @@ export function MassEditDialog({
   const hasAnyApply = Object.values(applyState).some(Boolean);
   const isCurrentModelCursor = isCursorModel(model);
   const modelAllowsThinking = !isCurrentModelCursor && modelSupportsThinking(model);
-  const modelSupportsPlanningMode = isClaudeModel(model);
+  // All models support planning mode via marker-based instructions in prompts
+  const modelSupportsPlanningMode = true;
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>

@@ -492,6 +492,33 @@ export function useAutoMode(worktree?: WorktreeInfo) {
             });
           }
           break;
+
+        case 'auto_mode_task_status':
+          // Task status updated - update planSpec.tasks in real-time
+          if (event.featureId && 'taskId' in event && 'tasks' in event) {
+            const statusEvent = event as Extract<AutoModeEvent, { type: 'auto_mode_task_status' }>;
+            logger.debug(
+              `[AutoMode] Task ${statusEvent.taskId} status updated to ${statusEvent.status} for ${event.featureId}`
+            );
+            // The planSpec.tasks array update is handled by query invalidation
+            // which will refetch the feature data
+          }
+          break;
+
+        case 'auto_mode_summary':
+          // Summary extracted and saved
+          if (event.featureId && 'summary' in event) {
+            const summaryEvent = event as Extract<AutoModeEvent, { type: 'auto_mode_summary' }>;
+            logger.debug(
+              `[AutoMode] Summary saved for ${event.featureId}: ${summaryEvent.summary.substring(0, 100)}...`
+            );
+            addAutoModeActivity({
+              featureId: event.featureId,
+              type: 'progress',
+              message: `Summary: ${summaryEvent.summary.substring(0, 100)}...`,
+            });
+          }
+          break;
       }
     });
 

@@ -43,7 +43,7 @@ import type { WorkMode } from '../shared';
 import { PhaseModelSelector } from '@/components/views/settings-view/model-defaults/phase-model-selector';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DependencyTreeDialog } from './dependency-tree-dialog';
-import { isClaudeModel, supportsReasoningEffort } from '@automaker/types';
+import { supportsReasoningEffort } from '@automaker/types';
 
 const logger = createLogger('EditFeatureDialog');
 
@@ -119,8 +119,8 @@ export function EditFeatureDialog({
     reasoningEffort: feature?.reasoningEffort || 'none',
   }));
 
-  // Check if current model supports planning mode (Claude/Anthropic only)
-  const modelSupportsPlanningMode = isClaudeModel(modelEntry.model);
+  // All models support planning mode via marker-based instructions in prompts
+  const modelSupportsPlanningMode = true;
 
   // Track the source of description changes for history
   const [descriptionChangeSource, setDescriptionChangeSource] = useState<

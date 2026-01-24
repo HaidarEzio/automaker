@@ -335,6 +335,26 @@ export type AutoModeEvent =
       phaseNumber: number;
     }
   | {
+      type: 'auto_mode_task_status';
+      featureId: string;
+      projectPath?: string;
+      taskId: string;
+      status: 'pending' | 'in_progress' | 'completed' | 'failed';
+      tasks: Array<{
+        id: string;
+        description: string;
+        filePath?: string;
+        phase?: string;
+        status: 'pending' | 'in_progress' | 'completed' | 'failed';
+      }>;
+    }
+  | {
+      type: 'auto_mode_summary';
+      featureId: string;
+      projectPath?: string;
+      summary: string;
+    }
+  | {
       type: 'auto_mode_resuming_features';
       message: string;
       projectPath?: string;

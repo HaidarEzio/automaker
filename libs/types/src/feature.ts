@@ -32,6 +32,50 @@ export interface FeatureTextFilePath {
   [key: string]: unknown;
 }
 
+/**
+ * A parsed task extracted from a spec/plan
+ * Used for spec and full planning modes to track individual task progress
+ */
+export interface ParsedTask {
+  /** Task ID, e.g., "T001" */
+  id: string;
+  /** Task description, e.g., "Create user model" */
+  description: string;
+  /** Optional file path for the task, e.g., "src/models/user.ts" */
+  filePath?: string;
+  /** Optional phase name for full mode, e.g., "Phase 1: Foundation" */
+  phase?: string;
+  /** Task execution status */
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+}
+
+/**
+ * Plan specification status for feature planning modes
+ * Tracks the plan generation and approval workflow
+ */
+export interface PlanSpec {
+  /** Current status of the plan */
+  status: 'pending' | 'generating' | 'generated' | 'approved' | 'rejected';
+  /** The actual spec/plan markdown content */
+  content?: string;
+  /** Version number for tracking plan revisions */
+  version: number;
+  /** ISO timestamp when the spec was generated */
+  generatedAt?: string;
+  /** ISO timestamp when the spec was approved */
+  approvedAt?: string;
+  /** True if user has reviewed the spec */
+  reviewedByUser: boolean;
+  /** Number of completed tasks */
+  tasksCompleted?: number;
+  /** Total number of tasks in the spec */
+  tasksTotal?: number;
+  /** ID of the task currently being worked on */
+  currentTaskId?: string;
+  /** Parsed tasks from the spec content */
+  tasks?: ParsedTask[];
+}
+
 export interface Feature {
   id: string;
   title?: string;
@@ -54,16 +98,7 @@ export interface Feature {
   reasoningEffort?: ReasoningEffort;
   planningMode?: PlanningMode;
   requirePlanApproval?: boolean;
-  planSpec?: {
-    status: 'pending' | 'generating' | 'generated' | 'approved' | 'rejected';
-    content?: string;
-    version: number;
-    generatedAt?: string;
-    approvedAt?: string;
-    reviewedByUser: boolean;
-    tasksCompleted?: number;
-    tasksTotal?: number;
-  };
+  planSpec?: PlanSpec;
   error?: string;
   summary?: string;
   startedAt?: string;

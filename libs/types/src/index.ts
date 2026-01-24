@@ -67,6 +67,8 @@ export type {
   FeatureExport,
   FeatureImport,
   FeatureImportResult,
+  ParsedTask,
+  PlanSpec,
 } from './feature.js';
 
 // Session types
