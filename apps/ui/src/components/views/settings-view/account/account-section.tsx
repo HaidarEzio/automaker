@@ -19,6 +19,7 @@ import { useAppStore } from '@/store/app-store';
 import {
   useAvailableEditors,
   useEffectiveDefaultEditor,
+  type EditorInfo,
 } from '@/components/views/board-view/worktree-panel/hooks/use-available-editors';
 import { getEditorIcon } from '@/components/icons/editor-icons';
 
@@ -36,7 +37,7 @@ export function AccountSection() {
 
   // Normalize Select value: if saved editor isn't found, show 'auto'
   const hasSavedEditor =
-    !!defaultEditorCommand && editors.some((e) => e.command === defaultEditorCommand);
+    !!defaultEditorCommand && editors.some((e: EditorInfo) => e.command === defaultEditorCommand);
   const selectValue = hasSavedEditor ? defaultEditorCommand : 'auto';
 
   // Get icon component for the effective editor
@@ -121,7 +122,7 @@ export function AccountSection() {
                     Auto-detect
                   </span>
                 </SelectItem>
-                {editors.map((editor) => {
+                {editors.map((editor: EditorInfo) => {
                   const Icon = getEditorIcon(editor.command);
                   return (
                     <SelectItem key={editor.command} value={editor.command}>

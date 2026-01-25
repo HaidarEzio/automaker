@@ -28,6 +28,9 @@ import type {
   UpdateIdeaInput,
   ConvertToFeatureOptions,
   IdeationContextSources,
+  Feature,
+  IdeationStreamEvent,
+  IdeationAnalysisEvent,
 } from '@automaker/types';
 import { DEFAULT_MAX_CONCURRENCY } from '@automaker/types';
 import { getJSON, setJSON, removeItem } from './storage';
@@ -124,7 +127,7 @@ export interface IdeationAPI {
     projectPath: string,
     ideaId: string,
     options?: ConvertToFeatureOptions
-  ) => Promise<{ success: boolean; feature?: any; featureId?: string; error?: string }>;
+  ) => Promise<{ success: boolean; feature?: Feature; featureId?: string; error?: string }>;
 
   // Add suggestion directly to board as feature
   addSuggestionToBoard: (
@@ -141,8 +144,8 @@ export interface IdeationAPI {
   }>;
 
   // Event subscriptions
-  onStream: (callback: (event: any) => void) => () => void;
-  onAnalysisEvent: (callback: (event: any) => void) => () => void;
+  onStream: (callback: (event: IdeationStreamEvent) => void) => () => void;
+  onAnalysisEvent: (callback: (event: IdeationAnalysisEvent) => void) => () => void;
 }
 
 export interface FileEntry {
@@ -186,6 +189,16 @@ export interface StatResult {
   error?: string;
 }
 
+// Options for creating a pull request
+export interface CreatePROptions {
+  projectPath?: string;
+  commitMessage?: string;
+  prTitle?: string;
+  prBody?: string;
+  baseBranch?: string;
+  draft?: boolean;
+}
+
 // Re-export types from electron.d.ts for external use
 export type {
   AutoModeEvent,
@@ -212,9 +225,6 @@ import type {
 // Import HTTP API client (ES module)
 import { getHttpApiClient, getServerUrlSync } from './http-api-client';
 
-// Feature type - Import from app-store
-import type { Feature } from '@/store/app-store';
-
 // Running Agent type
 export interface RunningAgent {
   featureId: string;
@@ -223,6 +233,7 @@ export interface RunningAgent {
   isAutoMode: boolean;
   title?: string;
   description?: string;
+  branchName?: string;
 }
 
 export interface RunningAgentsResult {
@@ -749,7 +760,7 @@ export interface ElectronAPI {
   };
   // Setup API surface is implemented by the main process and mirrored by HttpApiClient.
   // Keep this intentionally loose to avoid tight coupling between front-end and server types.
-  setup?: any;
+  setup?: SetupAPI;
   agent?: {
     start: (
       sessionId: string,
@@ -774,6 +785,18 @@ export interface ElectronAPI {
     }>;
     stop: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
     clear: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+    queueList: (sessionId: string) => Promise<{
+      success: boolean;
+      queue?: Array<{
+        id: string;
+        message: string;
+        imagePaths?: string[];
+        model?: string;
+        thinkingLevel?: string;
+        addedAt: string;
+      }>;
+      error?: string;
+    }>;
     onStream: (callback: (data: unknown) => void) => () => void;
   };
   sessions?: {
@@ -925,12 +948,16 @@ export interface ElectronAPI {
 // Do not redeclare here to avoid type conflicts
 
 // Mock data for web development
-const mockFeatures = [
+const mockFeatures: Feature[] = [
   {
+    id: 'mock-feature-1',
+    title: 'Sample Feature',
     category: 'Core',
     description: 'Sample Feature',
+    status: 'backlog',
     steps: ['Step 1', 'Step 2'],
     passes: false,
+    createdAt: new Date().toISOString(),
   },
 ];
 
@@ -950,13 +977,11 @@ export const isElectron = (): boolean => {
     return false;
   }
 
-  const w = window as any;
-
-  if (w.isElectron === true) {
+  if (window.isElectron === true) {
     return true;
   }
 
-  return !!w.electronAPI?.isElectron;
+  return !!window.electronAPI?.isElectron;
 };
 
 // Check if backend server is available
@@ -1030,7 +1055,7 @@ export const getCurrentApiMode = (): 'http' => {
 
 // Debug helpers
 if (typeof window !== 'undefined') {
-  (window as any).__checkApiMode = () => {
+  window.__checkApiMode = () => {
     console.log('Current API mode:', getCurrentApiMode());
     console.log('isElectron():', isElectron());
   };
@@ -1342,6 +1367,13 @@ const _getMockElectronAPI = (): ElectronAPI => {
   };
 };
 
+// Install progress event type used by useCliInstallation hook
+interface InstallProgressEvent {
+  cli?: string;
+  data?: string;
+  type?: string;
+}
+
 // Setup API interface
 interface SetupAPI {
   getClaudeStatus: () => Promise<{
@@ -1380,7 +1412,15 @@ interface SetupAPI {
     message?: string;
     output?: string;
   }>;
+  deauthClaude?: () => Promise<{
+    success: boolean;
+    requiresManualDeauth?: boolean;
+    command?: string;
+    message?: string;
+    error?: string;
+  }>;
   storeApiKey: (provider: string, apiKey: string) => Promise<{ success: boolean; error?: string }>;
+  saveApiKey?: (provider: string, apiKey: string) => Promise<{ success: boolean; error?: string }>;
   getApiKeys: () => Promise<{
     success: boolean;
     hasAnthropicKey: boolean;
@@ -1413,12 +1453,252 @@ interface SetupAPI {
     user: string | null;
     error?: string;
   }>;
-  onInstallProgress?: (callback: (progress: any) => void) => () => void;
-  onAuthProgress?: (callback: (progress: any) => void) => () => void;
+  // Cursor CLI methods
+  getCursorStatus?: () => Promise<{
+    success: boolean;
+    installed?: boolean;
+    version?: string | null;
+    path?: string | null;
+    auth?: {
+      authenticated: boolean;
+      method: string;
+    };
+    installCommand?: string;
+    loginCommand?: string;
+    error?: string;
+  }>;
+  authCursor?: () => Promise<{
+    success: boolean;
+    token?: string;
+    requiresManualAuth?: boolean;
+    terminalOpened?: boolean;
+    command?: string;
+    message?: string;
+    output?: string;
+  }>;
+  deauthCursor?: () => Promise<{
+    success: boolean;
+    requiresManualDeauth?: boolean;
+    command?: string;
+    message?: string;
+    error?: string;
+  }>;
+  // Codex CLI methods
+  getCodexStatus?: () => Promise<{
+    success: boolean;
+    status?: string;
+    installed?: boolean;
+    method?: string;
+    version?: string;
+    path?: string;
+    auth?: {
+      authenticated: boolean;
+      method: string;
+      hasAuthFile?: boolean;
+      hasOAuthToken?: boolean;
+      hasApiKey?: boolean;
+      hasStoredApiKey?: boolean;
+      hasEnvApiKey?: boolean;
+    };
+    error?: string;
+  }>;
+  installCodex?: () => Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }>;
+  authCodex?: () => Promise<{
+    success: boolean;
+    token?: string;
+    requiresManualAuth?: boolean;
+    terminalOpened?: boolean;
+    command?: string;
+    error?: string;
+    message?: string;
+    output?: string;
+  }>;
+  deauthCodex?: () => Promise<{
+    success: boolean;
+    requiresManualDeauth?: boolean;
+    command?: string;
+    message?: string;
+    error?: string;
+  }>;
+  verifyCodexAuth?: (
+    authMethod: 'cli' | 'api_key',
+    apiKey?: string
+  ) => Promise<{
+    success: boolean;
+    authenticated: boolean;
+    error?: string;
+  }>;
+  // OpenCode CLI methods
+  getOpencodeStatus?: () => Promise<{
+    success: boolean;
+    status?: string;
+    installed?: boolean;
+    method?: string;
+    version?: string;
+    path?: string;
+    recommendation?: string;
+    installCommands?: {
+      macos?: string;
+      linux?: string;
+      npm?: string;
+    };
+    auth?: {
+      authenticated: boolean;
+      method: string;
+      hasAuthFile?: boolean;
+      hasOAuthToken?: boolean;
+      hasApiKey?: boolean;
+      hasStoredApiKey?: boolean;
+      hasEnvApiKey?: boolean;
+    };
+    error?: string;
+  }>;
+  authOpencode?: () => Promise<{
+    success: boolean;
+    token?: string;
+    requiresManualAuth?: boolean;
+    terminalOpened?: boolean;
+    command?: string;
+    message?: string;
+    output?: string;
+  }>;
+  deauthOpencode?: () => Promise<{
+    success: boolean;
+    requiresManualDeauth?: boolean;
+    command?: string;
+    message?: string;
+    error?: string;
+  }>;
+  getOpencodeModels?: (refresh?: boolean) => Promise<{
+    success: boolean;
+    models?: Array<{
+      id: string;
+      name: string;
+      modelString: string;
+      provider: string;
+      description: string;
+      supportsTools: boolean;
+      supportsVision: boolean;
+      tier: string;
+      default?: boolean;
+    }>;
+    count?: number;
+    cached?: boolean;
+    error?: string;
+  }>;
+  refreshOpencodeModels?: () => Promise<{
+    success: boolean;
+    models?: Array<{
+      id: string;
+      name: string;
+      modelString: string;
+      provider: string;
+      description: string;
+      supportsTools: boolean;
+      supportsVision: boolean;
+      tier: string;
+      default?: boolean;
+    }>;
+    count?: number;
+    error?: string;
+  }>;
+  getOpencodeProviders?: () => Promise<{
+    success: boolean;
+    providers?: Array<{
+      id: string;
+      name: string;
+      authenticated: boolean;
+      authMethod?: 'oauth' | 'api_key';
+    }>;
+    authenticated?: Array<{
+      id: string;
+      name: string;
+      authenticated: boolean;
+      authMethod?: 'oauth' | 'api_key';
+    }>;
+    error?: string;
+  }>;
+  clearOpencodeCache?: () => Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }>;
+  // Gemini CLI methods
+  getGeminiStatus?: () => Promise<{
+    success: boolean;
+    status?: string;
+    installed?: boolean;
+    method?: string;
+    version?: string;
+    path?: string;
+    recommendation?: string;
+    installCommands?: {
+      macos?: string;
+      linux?: string;
+      npm?: string;
+    };
+    auth?: {
+      authenticated: boolean;
+      method: string;
+      hasApiKey?: boolean;
+      hasEnvApiKey?: boolean;
+      error?: string;
+    };
+    loginCommand?: string;
+    installCommand?: string;
+    error?: string;
+  }>;
+  authGemini?: () => Promise<{
+    success: boolean;
+    requiresManualAuth?: boolean;
+    command?: string;
+    message?: string;
+    error?: string;
+  }>;
+  deauthGemini?: () => Promise<{
+    success: boolean;
+    requiresManualDeauth?: boolean;
+    command?: string;
+    message?: string;
+    error?: string;
+  }>;
+  // Copilot SDK methods
+  getCopilotStatus?: () => Promise<{
+    success: boolean;
+    status?: string;
+    installed?: boolean;
+    method?: string;
+    version?: string;
+    path?: string;
+    recommendation?: string;
+    auth?: {
+      authenticated: boolean;
+      method: string;
+      login?: string;
+      host?: string;
+      error?: string;
+    };
+    loginCommand?: string;
+    installCommand?: string;
+    error?: string;
+  }>;
+  onInstallProgress?: (
+    callback: (progress: InstallProgressEvent) => void
+  ) => (() => void) | undefined;
+  onAuthProgress?: (callback: (progress: InstallProgressEvent) => void) => (() => void) | undefined;
 }
 
 // Mock Setup API implementation
 function createMockSetupAPI(): SetupAPI {
+  const mockStoreApiKey = async (provider: string, _apiKey: string) => {
+    console.log('[Mock] Storing API key for:', provider);
+    return { success: true };
+  };
+
   return {
     getClaudeStatus: async () => {
       console.log('[Mock] Getting Claude status');
@@ -1457,11 +1737,17 @@ function createMockSetupAPI(): SetupAPI {
       };
     },
 
-    storeApiKey: async (provider: string, _apiKey: string) => {
-      console.log('[Mock] Storing API key for:', provider);
-      // In mock mode, we just pretend to store it (it's already in the app store)
-      return { success: true };
+    deauthClaude: async () => {
+      console.log('[Mock] Deauth Claude CLI');
+      return {
+        success: true,
+        requiresManualDeauth: true,
+        command: 'claude logout',
+      };
     },
+
+    storeApiKey: mockStoreApiKey,
+    saveApiKey: mockStoreApiKey,
 
     getApiKeys: async () => {
       console.log('[Mock] Getting API keys');
@@ -1509,6 +1795,187 @@ function createMockSetupAPI(): SetupAPI {
         version: null,
         path: null,
         user: null,
+      };
+    },
+
+    // Cursor CLI mock methods
+    getCursorStatus: async () => {
+      console.log('[Mock] Getting Cursor status');
+      return {
+        success: true,
+        installed: false,
+        version: null,
+        path: null,
+        auth: { authenticated: false, method: 'none' },
+      };
+    },
+
+    authCursor: async () => {
+      console.log('[Mock] Auth Cursor CLI');
+      return {
+        success: true,
+        requiresManualAuth: true,
+        command: 'cursor --login',
+      };
+    },
+
+    deauthCursor: async () => {
+      console.log('[Mock] Deauth Cursor CLI');
+      return {
+        success: true,
+        requiresManualDeauth: true,
+        command: 'cursor --logout',
+      };
+    },
+
+    // Codex CLI mock methods
+    getCodexStatus: async () => {
+      console.log('[Mock] Getting Codex status');
+      return {
+        success: true,
+        status: 'not_installed',
+        installed: false,
+        auth: { authenticated: false, method: 'none' },
+      };
+    },
+
+    installCodex: async () => {
+      console.log('[Mock] Installing Codex CLI');
+      return {
+        success: false,
+        error: 'CLI installation is only available in the Electron app.',
+      };
+    },
+
+    authCodex: async () => {
+      console.log('[Mock] Auth Codex CLI');
+      return {
+        success: true,
+        requiresManualAuth: true,
+        command: 'codex login',
+      };
+    },
+
+    deauthCodex: async () => {
+      console.log('[Mock] Deauth Codex CLI');
+      return {
+        success: true,
+        requiresManualDeauth: true,
+        command: 'codex logout',
+      };
+    },
+
+    verifyCodexAuth: async (authMethod: 'cli' | 'api_key') => {
+      console.log('[Mock] Verifying Codex auth with method:', authMethod);
+      return {
+        success: true,
+        authenticated: false,
+        error: 'Mock environment - authentication not available',
+      };
+    },
+
+    // OpenCode CLI mock methods
+    getOpencodeStatus: async () => {
+      console.log('[Mock] Getting OpenCode status');
+      return {
+        success: true,
+        status: 'not_installed',
+        installed: false,
+        auth: { authenticated: false, method: 'none' },
+      };
+    },
+
+    authOpencode: async () => {
+      console.log('[Mock] Auth OpenCode CLI');
+      return {
+        success: true,
+        requiresManualAuth: true,
+        command: 'opencode auth login',
+      };
+    },
+
+    deauthOpencode: async () => {
+      console.log('[Mock] Deauth OpenCode CLI');
+      return {
+        success: true,
+        requiresManualDeauth: true,
+        command: 'opencode auth logout',
+      };
+    },
+
+    getOpencodeModels: async () => {
+      console.log('[Mock] Getting OpenCode models');
+      return {
+        success: true,
+        models: [],
+        count: 0,
+        cached: false,
+      };
+    },
+
+    refreshOpencodeModels: async () => {
+      console.log('[Mock] Refreshing OpenCode models');
+      return {
+        success: true,
+        models: [],
+        count: 0,
+      };
+    },
+
+    getOpencodeProviders: async () => {
+      console.log('[Mock] Getting OpenCode providers');
+      return {
+        success: true,
+        providers: [],
+        authenticated: [],
+      };
+    },
+
+    clearOpencodeCache: async () => {
+      console.log('[Mock] Clearing OpenCode cache');
+      return {
+        success: true,
+        message: 'Cache cleared',
+      };
+    },
+
+    // Gemini CLI mock methods
+    getGeminiStatus: async () => {
+      console.log('[Mock] Getting Gemini status');
+      return {
+        success: true,
+        status: 'not_installed',
+        installed: false,
+        auth: { authenticated: false, method: 'none' },
+      };
+    },
+
+    authGemini: async () => {
+      console.log('[Mock] Auth Gemini CLI');
+      return {
+        success: true,
+        requiresManualAuth: true,
+        command: 'gemini auth login',
+      };
+    },
+
+    deauthGemini: async () => {
+      console.log('[Mock] Deauth Gemini CLI');
+      return {
+        success: true,
+        requiresManualDeauth: true,
+        command: 'gemini auth logout',
+      };
+    },
+
+    // Copilot SDK mock methods
+    getCopilotStatus: async () => {
+      console.log('[Mock] Getting Copilot status');
+      return {
+        success: true,
+        status: 'not_installed',
+        installed: false,
+        auth: { authenticated: false, method: 'none' },
       };
     },
 
@@ -1665,7 +2132,7 @@ function createMockWorktreeAPI(): WorktreeAPI {
       };
     },
 
-    createPR: async (worktreePath: string, options?: any) => {
+    createPR: async (worktreePath: string, options?: CreatePROptions) => {
       console.log('[Mock] Creating PR:', { worktreePath, options });
       return {
         success: true,
@@ -1780,6 +2247,19 @@ function createMockWorktreeAPI(): WorktreeAPI {
               ],
             },
           ],
+        },
+      };
+    },
+
+    addRemote: async (worktreePath: string, remoteName: string, remoteUrl: string) => {
+      console.log('[Mock] Adding remote:', { worktreePath, remoteName, remoteUrl });
+      return {
+        success: true,
+        result: {
+          remoteName,
+          remoteUrl,
+          fetched: true,
+          message: `Added remote '${remoteName}' (${remoteUrl})`,
         },
       };
     },
@@ -2113,14 +2593,14 @@ let mockAutoModeTimeouts = new Map<string, NodeJS.Timeout>(); // Track timeouts 
 
 function createMockAutoModeAPI(): AutoModeAPI {
   return {
-    start: async (projectPath: string, maxConcurrency?: number) => {
+    start: async (projectPath: string, branchName?: string | null, maxConcurrency?: number) => {
       if (mockAutoModeRunning) {
         return { success: false, error: 'Auto mode is already running' };
       }
 
       mockAutoModeRunning = true;
       console.log(
-        `[Mock] Auto mode started with maxConcurrency: ${maxConcurrency || DEFAULT_MAX_CONCURRENCY}`
+        `[Mock] Auto mode started with branchName: ${branchName}, maxConcurrency: ${maxConcurrency || DEFAULT_MAX_CONCURRENCY}`
       );
       const featureId = 'auto-mode-0';
       mockRunningFeatures.add(featureId);
@@ -2131,7 +2611,7 @@ function createMockAutoModeAPI(): AutoModeAPI {
       return { success: true };
     },
 
-    stop: async (_projectPath: string) => {
+    stop: async (_projectPath: string, _branchName?: string | null) => {
       mockAutoModeRunning = false;
       const runningCount = mockRunningFeatures.size;
       mockRunningFeatures.clear();
@@ -2927,7 +3407,7 @@ function createMockFeaturesAPI(): FeaturesAPI {
       console.log('[Mock] Getting all features for:', projectPath);
 
       // Check if test has set mock features via global variable
-      const testFeatures = (window as any).__mockFeatures;
+      const testFeatures = window.__mockFeatures;
       if (testFeatures !== undefined) {
         return { success: true, features: testFeatures };
       }

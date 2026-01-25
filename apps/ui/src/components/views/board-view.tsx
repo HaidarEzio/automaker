@@ -1,6 +1,6 @@
-// @ts-nocheck - dnd-kit type incompatibilities with collision detection and complex state management
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createLogger } from '@automaker/utils/logger';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -8,7 +8,8 @@ import {
   useSensors,
   rectIntersection,
   pointerWithin,
-  type PointerEvent as DndPointerEvent,
+  type CollisionDetection,
+  type Collision,
 } from '@dnd-kit/core';
 
 // Custom pointer sensor that ignores drag events from within dialogs
@@ -16,7 +17,7 @@ class DialogAwarePointerSensor extends PointerSensor {
   static activators = [
     {
       eventName: 'onPointerDown' as const,
-      handler: ({ nativeEvent: event }: { nativeEvent: DndPointerEvent }) => {
+      handler: ({ nativeEvent: event }: ReactPointerEvent) => {
         // Don't start drag if the event originated from inside a dialog
         if ((event.target as Element)?.closest?.('[role="dialog"]')) {
           return false;
@@ -29,7 +30,7 @@ class DialogAwarePointerSensor extends PointerSensor {
 import { useAppStore, Feature } from '@/store/app-store';
 import { getElectronAPI } from '@/lib/electron';
 import { getHttpApiClient } from '@/lib/http-api-client';
-import type { BacklogPlanResult } from '@automaker/types';
+import type { BacklogPlanResult, FeatureStatusWithPipeline } from '@automaker/types';
 import { pathsEqual } from '@/lib/utils';
 import { toast } from 'sonner';
 import { BoardBackgroundModal } from '@/components/dialogs/board-background-modal';
@@ -171,13 +172,9 @@ export function BoardView() {
   const [showCreatePRDialog, setShowCreatePRDialog] = useState(false);
   const [showCreateBranchDialog, setShowCreateBranchDialog] = useState(false);
   const [showPullResolveConflictsDialog, setShowPullResolveConflictsDialog] = useState(false);
-  const [selectedWorktreeForAction, setSelectedWorktreeForAction] = useState<{
-    path: string;
-    branch: string;
-    isMain: boolean;
-    hasChanges?: boolean;
-    changedFilesCount?: number;
-  } | null>(null);
+  const [selectedWorktreeForAction, setSelectedWorktreeForAction] = useState<WorktreeInfo | null>(
+    null
+  );
   const [worktreeRefreshKey, setWorktreeRefreshKey] = useState(0);
 
   // Backlog plan dialog state
@@ -348,12 +345,12 @@ export function BoardView() {
   }, [currentProject, worktreeRefreshKey]);
 
   // Custom collision detection that prioritizes specific drop targets (cards, worktrees) over columns
-  const collisionDetectionStrategy = useCallback((args: any) => {
+  const collisionDetectionStrategy = useCallback((args: Parameters<CollisionDetection>[0]) => {
     const pointerCollisions = pointerWithin(args);
 
     // Priority 1: Specific drop targets (cards for dependency links, worktrees)
     // These need to be detected even if they are inside a column
-    const specificTargetCollisions = pointerCollisions.filter((collision: any) => {
+    const specificTargetCollisions = pointerCollisions.filter((collision: Collision) => {
       const id = String(collision.id);
       return id.startsWith('card-drop-') || id.startsWith('worktree-drop-');
     });
@@ -363,7 +360,7 @@ export function BoardView() {
     }
 
     // Priority 2: Columns
-    const columnCollisions = pointerCollisions.filter((collision: any) =>
+    const columnCollisions = pointerCollisions.filter((collision: Collision) =>
       COLUMNS.some((col) => col.id === collision.id)
     );
 
@@ -417,19 +414,29 @@ export function BoardView() {
 
   // Get the branch for the currently selected worktree
   // Find the worktree that matches the current selection, or use main worktree
-  const selectedWorktree = useMemo(() => {
+  const selectedWorktree = useMemo((): WorktreeInfo | undefined => {
+    let found;
     if (currentWorktreePath === null) {
       // Primary worktree selected - find the main worktree
-      return worktrees.find((w) => w.isMain);
+      found = worktrees.find((w) => w.isMain);
     } else {
       // Specific worktree selected - find it by path
-      return worktrees.find((w) => !w.isMain && pathsEqual(w.path, currentWorktreePath));
+      found = worktrees.find((w) => !w.isMain && pathsEqual(w.path, currentWorktreePath));
     }
+    if (!found) return undefined;
+    // Ensure all required WorktreeInfo fields are present
+    return {
+      ...found,
+      isCurrent:
+        found.isCurrent ??
+        (currentWorktreePath !== null ? pathsEqual(found.path, currentWorktreePath) : found.isMain),
+      hasWorktree: found.hasWorktree ?? true,
+    };
   }, [worktrees, currentWorktreePath]);
 
   // Auto mode hook - pass current worktree to get worktree-specific state
   // Must be after selectedWorktree is defined
-  const autoMode = useAutoMode(selectedWorktree ?? undefined);
+  const autoMode = useAutoMode(selectedWorktree);
   // Get runningTasks from the hook (scoped to current project/worktree)
   const runningAutoTasks = autoMode.runningTasks;
   // Get worktree-specific maxConcurrency from the hook
@@ -958,28 +965,27 @@ export function BoardView() {
     const api = getElectronAPI();
     if (!api?.backlogPlan) return;
 
-    const unsubscribe = api.backlogPlan.onEvent(
-      (event: { type: string; result?: BacklogPlanResult; error?: string }) => {
-        if (event.type === 'backlog_plan_complete') {
-          setIsGeneratingPlan(false);
-          if (event.result && event.result.changes?.length > 0) {
-            setPendingBacklogPlan(event.result);
-            toast.success('Plan ready! Click to review.', {
-              duration: 10000,
-              action: {
-                label: 'Review',
-                onClick: () => setShowPlanDialog(true),
-              },
-            });
-          } else {
-            toast.info('No changes generated. Try again with a different prompt.');
-          }
-        } else if (event.type === 'backlog_plan_error') {
-          setIsGeneratingPlan(false);
-          toast.error(`Plan generation failed: ${event.error}`);
+    const unsubscribe = api.backlogPlan.onEvent((data: unknown) => {
+      const event = data as { type: string; result?: BacklogPlanResult; error?: string };
+      if (event.type === 'backlog_plan_complete') {
+        setIsGeneratingPlan(false);
+        if (event.result && event.result.changes?.length > 0) {
+          setPendingBacklogPlan(event.result);
+          toast.success('Plan ready! Click to review.', {
+            duration: 10000,
+            action: {
+              label: 'Review',
+              onClick: () => setShowPlanDialog(true),
+            },
+          });
+        } else {
+          toast.info('No changes generated. Try again with a different prompt.');
         }
+      } else if (event.type === 'backlog_plan_error') {
+        setIsGeneratingPlan(false);
+        toast.error(`Plan generation failed: ${event.error}`);
       }
-    );
+    });
 
     return unsubscribe;
   }, []);
@@ -1091,10 +1097,10 @@ export function BoardView() {
   // Build columnFeaturesMap for ListView
   // pipelineConfig is now from usePipelineConfig React Query hook at the top
   const columnFeaturesMap = useMemo(() => {
-    const columns = getColumnsWithPipeline(pipelineConfig);
+    const columns = getColumnsWithPipeline(pipelineConfig ?? null);
     const map: Record<string, typeof hookFeatures> = {};
     for (const column of columns) {
-      map[column.id] = getColumnFeatures(column.id as any);
+      map[column.id] = getColumnFeatures(column.id as FeatureStatusWithPipeline);
     }
     return map;
   }, [pipelineConfig, getColumnFeatures]);
@@ -1444,14 +1450,13 @@ export function BoardView() {
               onAddFeature={() => setShowAddDialog(true)}
               onShowCompletedModal={() => setShowCompletedModal(true)}
               completedCount={completedFeatures.length}
-              pipelineConfig={pipelineConfig}
+              pipelineConfig={pipelineConfig ?? null}
               onOpenPipelineSettings={() => setShowPipelineSettings(true)}
               isSelectionMode={isSelectionMode}
               selectionTarget={selectionTarget}
               selectedFeatureIds={selectedFeatureIds}
               onToggleFeatureSelection={toggleFeatureSelection}
               onToggleSelectionMode={toggleSelectionMode}
-              viewMode={viewMode}
               isDragging={activeFeature !== null}
               onAiSuggest={() => setShowPlanDialog(true)}
               className="transition-opacity duration-200"
@@ -1604,7 +1609,7 @@ export function BoardView() {
         open={showPipelineSettings}
         onClose={() => setShowPipelineSettings(false)}
         projectPath={currentProject.path}
-        pipelineConfig={pipelineConfig}
+        pipelineConfig={pipelineConfig ?? null}
         onSave={async (config) => {
           const api = getHttpApiClient();
           const result = await api.pipeline.saveConfig(currentProject.path, config);

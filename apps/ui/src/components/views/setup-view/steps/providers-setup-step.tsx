@@ -133,8 +133,8 @@ function ClaudeContent() {
       if (result.success) {
         setClaudeCliStatus({
           installed: result.installed ?? false,
-          version: result.version,
-          path: result.path,
+          version: result.version ?? null,
+          path: result.path ?? null,
           method: 'none',
         });
 
@@ -707,14 +707,21 @@ function CodexContent() {
       if (result.success) {
         setCodexCliStatus({
           installed: result.installed ?? false,
-          version: result.version,
-          path: result.path,
+          version: result.version ?? null,
+          path: result.path ?? null,
           method: 'none',
         });
         if (result.auth?.authenticated) {
+          const validMethods = ['api_key_env', 'api_key', 'cli_authenticated', 'none'] as const;
+          type CodexAuthMethod = (typeof validMethods)[number];
+          const method: CodexAuthMethod = validMethods.includes(
+            result.auth.method as CodexAuthMethod
+          )
+            ? (result.auth.method as CodexAuthMethod)
+            : 'cli_authenticated';
           setCodexAuthStatus({
             authenticated: true,
-            method: result.auth.method || 'cli_authenticated',
+            method,
           });
           toast.success('Codex CLI is ready!');
         }
@@ -997,13 +1004,18 @@ function OpencodeContent() {
       if (!api.setup?.getOpencodeStatus) return;
       const result = await api.setup.getOpencodeStatus();
       if (result.success) {
+        // Derive install command from platform-specific options or use npm fallback
+        const installCommand =
+          result.installCommands?.npm ||
+          result.installCommands?.macos ||
+          result.installCommands?.linux;
         setOpencodeCliStatus({
           installed: result.installed ?? false,
-          version: result.version,
-          path: result.path,
+          version: result.version ?? null,
+          path: result.path ?? null,
           auth: result.auth,
-          installCommand: result.installCommand,
-          loginCommand: result.loginCommand,
+          installCommand,
+          loginCommand: 'opencode auth login',
         });
         if (result.auth?.authenticated) {
           toast.success('OpenCode CLI is ready!');
@@ -1807,8 +1819,8 @@ export function ProvidersSetupStep({ onNext, onBack }: ProvidersSetupStepProps) 
         if (result.success) {
           setClaudeCliStatus({
             installed: result.installed ?? false,
-            version: result.version,
-            path: result.path,
+            version: result.version ?? null,
+            path: result.path ?? null,
             method: 'none',
           });
           // Note: Auth verification is handled by ClaudeContent component to avoid duplicate calls
@@ -1846,14 +1858,21 @@ export function ProvidersSetupStep({ onNext, onBack }: ProvidersSetupStepProps) 
         if (result.success) {
           setCodexCliStatus({
             installed: result.installed ?? false,
-            version: result.version,
-            path: result.path,
+            version: result.version ?? null,
+            path: result.path ?? null,
             method: 'none',
           });
           if (result.auth?.authenticated) {
+            const validMethods = ['api_key_env', 'api_key', 'cli_authenticated', 'none'] as const;
+            type CodexAuthMethodType = (typeof validMethods)[number];
+            const method: CodexAuthMethodType = validMethods.includes(
+              result.auth.method as CodexAuthMethodType
+            )
+              ? (result.auth.method as CodexAuthMethodType)
+              : 'cli_authenticated';
             setCodexAuthStatus({
               authenticated: true,
-              method: result.auth.method || 'cli_authenticated',
+              method,
             });
           }
         }
@@ -1868,13 +1887,18 @@ export function ProvidersSetupStep({ onNext, onBack }: ProvidersSetupStepProps) 
         if (!api.setup?.getOpencodeStatus) return;
         const result = await api.setup.getOpencodeStatus();
         if (result.success) {
+          // Derive install command from platform-specific options or use npm fallback
+          const installCommand =
+            result.installCommands?.npm ||
+            result.installCommands?.macos ||
+            result.installCommands?.linux;
           setOpencodeCliStatus({
             installed: result.installed ?? false,
-            version: result.version,
-            path: result.path,
+            version: result.version ?? null,
+            path: result.path ?? null,
             auth: result.auth,
-            installCommand: result.installCommand,
-            loginCommand: result.loginCommand,
+            installCommand,
+            loginCommand: 'opencode auth login',
           });
         }
       } catch {

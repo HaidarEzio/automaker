@@ -17,6 +17,7 @@ import type {
   ModelAlias,
   PlanningMode,
   ThinkingLevel,
+  ReasoningEffort,
   ModelProvider,
   CursorModelId,
   CodexModelId,
@@ -63,6 +64,7 @@ export type {
   ModelAlias,
   PlanningMode,
   ThinkingLevel,
+  ReasoningEffort,
   ModelProvider,
   ServerLogLevel,
   FeatureTextFilePath,
@@ -153,8 +155,12 @@ export function getStoredTheme(): ThemeMode | null {
   try {
     const legacy = getItem('automaker-storage');
     if (!legacy) return null;
-    const parsed = JSON.parse(legacy) as { state?: { theme?: unknown } } | { theme?: unknown };
-    const theme = (parsed as any)?.state?.theme ?? (parsed as any)?.theme;
+    interface LegacyStorageFormat {
+      state?: { theme?: string };
+      theme?: string;
+    }
+    const parsed = JSON.parse(legacy) as LegacyStorageFormat;
+    const theme = parsed.state?.theme ?? parsed.theme;
     if (typeof theme === 'string' && theme.length > 0) {
       return theme as ThemeMode;
     }
@@ -456,7 +462,17 @@ export type ClaudeModel = 'opus' | 'sonnet' | 'haiku';
 
 export interface Feature extends Omit<
   BaseFeature,
-  'steps' | 'imagePaths' | 'textFilePaths' | 'status' | 'planSpec'
+  | 'steps'
+  | 'imagePaths'
+  | 'textFilePaths'
+  | 'status'
+  | 'planSpec'
+  | 'dependencies'
+  | 'model'
+  | 'branchName'
+  | 'thinkingLevel'
+  | 'reasoningEffort'
+  | 'summary'
 > {
   id: string;
   title?: string;
@@ -471,6 +487,12 @@ export interface Feature extends Omit<
   justFinishedAt?: string; // UI-specific: ISO timestamp when agent just finished
   prUrl?: string; // UI-specific: Pull request URL
   planSpec?: PlanSpec; // Explicit planSpec type to override BaseFeature's index signature
+  dependencies?: string[]; // Explicit type to override BaseFeature's index signature
+  model?: string; // Explicit type to override BaseFeature's index signature
+  branchName?: string; // Explicit type to override BaseFeature's index signature
+  thinkingLevel?: ThinkingLevel; // Explicit type to override BaseFeature's index signature
+  reasoningEffort?: ReasoningEffort; // Explicit type to override BaseFeature's index signature
+  summary?: string; // Explicit type to override BaseFeature's index signature
 }
 
 // ParsedTask and PlanSpec types are now imported from @automaker/types
@@ -661,6 +683,8 @@ export interface AppState {
       path: string;
       branch: string;
       isMain: boolean;
+      isCurrent: boolean;
+      hasWorktree: boolean;
       hasChanges?: boolean;
       changedFilesCount?: number;
     }>
@@ -1152,6 +1176,8 @@ export interface AppActions {
       path: string;
       branch: string;
       isMain: boolean;
+      isCurrent: boolean;
+      hasWorktree: boolean;
       hasChanges?: boolean;
       changedFilesCount?: number;
     }>
@@ -1161,6 +1187,8 @@ export interface AppActions {
     path: string;
     branch: string;
     isMain: boolean;
+    isCurrent: boolean;
+    hasWorktree: boolean;
     hasChanges?: boolean;
     changedFilesCount?: number;
   }>;
@@ -4105,7 +4133,7 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
 
     try {
       const api = getElectronAPI();
-      if (!api.setup) {
+      if (!api.setup?.getOpencodeModels) {
         throw new Error('Setup API not available');
       }
 
@@ -4116,7 +4144,7 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       }
 
       set({
-        dynamicOpencodeModels: result.models || [],
+        dynamicOpencodeModels: (result.models || []) as ModelDefinition[],
         opencodeModelsLastFetched: Date.now(),
         opencodeModelsLoading: false,
         opencodeModelsError: null,

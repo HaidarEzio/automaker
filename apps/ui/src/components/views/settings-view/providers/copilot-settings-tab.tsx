@@ -40,7 +40,7 @@ export function CopilotSettingsTab() {
       // Server sends installCommand (singular), transform to expected format
       installCommands: cliStatusData.installCommand
         ? { npm: cliStatusData.installCommand }
-        : cliStatusData.installCommands,
+        : undefined,
     };
   }, [cliStatusData]);
 

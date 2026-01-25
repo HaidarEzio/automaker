@@ -27,7 +27,7 @@ export function SecurityWarningDialog({
   onOpenChange,
   onConfirm,
   serverType,
-  _serverName,
+  serverName: _serverName,
   command,
   args,
   url,

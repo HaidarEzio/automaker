@@ -168,7 +168,8 @@ export function ProjectBulkReplaceDialog({
     currentEntry: PhaseModelEntry
   ) => {
     const claudeAlias = getClaudeModelAlias(currentEntry);
-    const newEntry = findModelForClaudeAlias(selectedProviderConfig, claudeAlias, key);
+    const providerConfig: ClaudeCompatibleProvider | null = selectedProviderConfig ?? null;
+    const newEntry = findModelForClaudeAlias(providerConfig, claudeAlias, key);
 
     // Get display names
     const getCurrentDisplay = (): string => {

@@ -1,6 +1,5 @@
 import { memo, useEffect, useState, useMemo, useRef } from 'react';
-import { Feature, ThinkingLevel, ParsedTask } from '@/store/app-store';
-import type { ReasoningEffort } from '@automaker/types';
+import { Feature, ThinkingLevel, ReasoningEffort, ParsedTask } from '@/store/app-store';
 import { getProviderFromModel } from '@/lib/utils';
 import { parseAgentContext, formatModelName, DEFAULT_MODEL } from '@/lib/agent-context-parser';
 import { cn } from '@/lib/utils';
@@ -290,7 +289,8 @@ export const AgentInfoPanel = memo(function AgentInfoPanel({
   // Agent Info Panel for non-backlog cards
   // Show panel if we have agentInfo OR planSpec.tasks (for spec/full mode)
   // Note: hasPlanSpecTasks is already defined above and includes freshPlanSpec
-  if (feature.status !== 'backlog' && (agentInfo || hasPlanSpecTasks)) {
+  // (The backlog case was already handled above and returned early)
+  if (agentInfo || hasPlanSpecTasks) {
     return (
       <>
         <div className="mb-3 space-y-2 overflow-hidden">

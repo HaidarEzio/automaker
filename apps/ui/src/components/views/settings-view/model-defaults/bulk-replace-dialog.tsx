@@ -158,7 +158,7 @@ export function BulkReplaceDialog({ open, onOpenChange }: BulkReplaceDialogProps
     currentEntry: PhaseModelEntry
   ) => {
     const claudeAlias = getClaudeModelAlias(currentEntry);
-    const newEntry = findModelForClaudeAlias(selectedProviderConfig, claudeAlias, key);
+    const newEntry = findModelForClaudeAlias(selectedProviderConfig ?? null, claudeAlias, key);
 
     // Get display names
     const getCurrentDisplay = (): string => {

@@ -121,7 +121,7 @@ export function RecentActivityFeed({ activities, maxItems = 10 }: RecentActivity
     async (activity: RecentActivity) => {
       try {
         // Get project path from the activity (projectId is actually the path in our data model)
-        const projectPath = activity.projectPath || activity.projectId;
+        const projectPath = (activity.projectPath as string | undefined) || activity.projectId;
         const projectName = activity.projectName;
 
         const initResult = await initializeProject(projectPath);

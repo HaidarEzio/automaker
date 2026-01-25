@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient, QueryClient } from '@tanstack/react-query';
 import { getElectronAPI } from '@/lib/electron';
 import { queryKeys } from '@/lib/query-keys';
-import type { AutoModeEvent, SpecRegenerationEvent } from '@/types/electron';
+import type { AutoModeEvent, SpecRegenerationEvent, StreamEvent } from '@/types/electron';
 import type { IssueValidationEvent } from '@automaker/types';
 import { debounce, type DebouncedFunction } from '@automaker/utils/debounce';
 import { useEventRecencyStore } from './use-event-recency';
@@ -165,6 +165,7 @@ export function useAutoModeQueryInvalidation(projectPath: string | undefined) {
     }
 
     const api = getElectronAPI();
+    if (!api.autoMode) return;
     const unsubscribe = api.autoMode.onEvent((event: AutoModeEvent) => {
       // Record that we received a WebSocket event (for event recency tracking)
       // This allows polling to be disabled when WebSocket events are flowing
@@ -241,6 +242,7 @@ export function useSpecRegenerationQueryInvalidation(projectPath: string | undef
     if (!projectPath) return;
 
     const api = getElectronAPI();
+    if (!api.specRegeneration) return;
     const unsubscribe = api.specRegeneration.onEvent((event: SpecRegenerationEvent) => {
       // Only handle events for the current project
       if (event.projectPath !== projectPath) return;
@@ -288,14 +290,14 @@ export function useGitHubValidationQueryInvalidation(projectPath: string | undef
       // Record that we received a WebSocket event
       recordGlobalEvent();
 
-      if (event.type === 'validation_complete' || event.type === 'validation_error') {
+      if (event.type === 'issue_validation_complete' || event.type === 'issue_validation_error') {
         // Invalidate all validations for this project
         queryClient.invalidateQueries({
           queryKey: queryKeys.github.validations(projectPath),
         });
 
         // Also invalidate specific issue validation if we have the issue number
-        if ('issueNumber' in event && event.issueNumber) {
+        if (event.issueNumber) {
           queryClient.invalidateQueries({
             queryKey: queryKeys.github.validation(projectPath, event.issueNumber),
           });
@@ -320,7 +322,9 @@ export function useSessionQueryInvalidation(sessionId: string | undefined) {
     if (!sessionId) return;
 
     const api = getElectronAPI();
-    const unsubscribe = api.agent.onStream((event) => {
+    if (!api.agent) return;
+    const unsubscribe = api.agent.onStream((data: unknown) => {
+      const event = data as StreamEvent;
       // Only handle events for the current session
       if ('sessionId' in event && event.sessionId !== sessionId) return;
 
